@@ -1,0 +1,367 @@
+---
+description: "AI/ML 거버넌스 강화 지침 - 모델 해석 가능성, 편향 감지, 윤리적 AI"
+globs: ["**/*.py", "**/*.ipynb"]
+alwaysApply: true
+---
+
+# AI/ML 거버넌스 강화 지침 (MANDATORY)
+
+## AI 거버넌스 요구사항
+- **모델 해석 가능성**: SHAP, LIME 기반 설명
+- **편향 감지**: 정기적 모델 편향 검사
+- **윤리적 AI**: 공정성, 책임성, 투명성
+- **모델 드리프트**: 실시간 성능 저하 감지
+- **A/B 테스트**: 모든 모델 변경 시 필수
+- **롤백 자동화**: 성능 저하 시 즉시 롤백
+
+## AI 거버넌스 구현 예시
+```python
+import shap
+import lime
+import numpy as np
+from typing import Dict, List, Any, Tuple
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+import logging
+
+logger = logging.getLogger(__name__)
+
+# 모델 해석 가능성
+class ModelExplainability:
+    def __init__(self, model, feature_names: List[str], training_data: np.ndarray):
+        self.model = model
+        self.feature_names = feature_names
+        self.training_data = training_data
+        self.explainer = shap.TreeExplainer(model)
+    
+    def explain_prediction(self, features: Dict[str, Any]) -> Dict[str, Any]:
+        """모델 예측 설명"""
+        # SHAP 기반 설명
+        feature_array = np.array([list(features.values())])
+        shap_values = self.explainer.shap_values(feature_array)
+        
+        # LIME 기반 설명
+        lime_explainer = lime.lime_tabular.LimeTabularExplainer(
+            self.training_data,
+            feature_names=self.feature_names,
+            class_names=['loss', 'profit'],
+            mode='classification'
+        )
+        lime_exp = lime_explainer.explain_instance(
+            feature_array[0], 
+            self.model.predict_proba,
+            num_features=len(self.feature_names)
+        )
+        
+        return {
+            'shap_values': shap_values[0].tolist(),
+            'lime_explanation': lime_exp.as_list(),
+            'feature_importance': self.get_feature_importance(shap_values[0]),
+            'prediction_confidence': self.get_prediction_confidence(feature_array)
+        }
+    
+    def get_feature_importance(self, shap_values: np.ndarray) -> Dict[str, float]:
+        """특성 중요도 계산"""
+        importance = {}
+        for i, feature in enumerate(self.feature_names):
+            importance[feature] = abs(shap_values[i])
+        return dict(sorted(importance.items(), key=lambda x: x[1], reverse=True))
+    
+    def get_prediction_confidence(self, features: np.ndarray) -> float:
+        """예측 신뢰도 계산"""
+        probabilities = self.model.predict_proba(features)
+        return np.max(probabilities)
+
+# 모델 편향 감지
+class BiasDetector:
+    def __init__(self):
+        self.bias_metrics = {}
+        self.sensitive_features = ['gender', 'age', 'region', 'income_level']
+    
+    def detect_bias(self, model, test_data: np.ndarray, 
+                   sensitive_attributes: Dict[str, np.ndarray]) -> Dict[str, Any]:
+        """모델 편향 감지"""
+        bias_results = {}
+        
+        for feature_name, feature_values in sensitive_attributes.items():
+            if feature_name in self.sensitive_features:
+                bias_metrics = self.calculate_bias_metrics(
+                    model, test_data, feature_values
+                )
+                bias_results[feature_name] = bias_metrics
+        
+        return bias_results
+    
+    def calculate_bias_metrics(self, model, test_data: np.ndarray, 
+                             sensitive_values: np.ndarray) -> Dict[str, float]:
+        """편향 메트릭 계산"""
+        predictions = model.predict(test_data)
+        
+        # 통계적 패리티 차이
+        statistical_parity_diff = self.calculate_statistical_parity_difference(
+            predictions, sensitive_values
+        )
+        
+        # 평등 기회 차이
+        equal_opportunity_diff = self.calculate_equal_opportunity_difference(
+            predictions, sensitive_values
+        )
+        
+        # 평등 정확도 차이
+        equal_accuracy_diff = self.calculate_equal_accuracy_difference(
+            predictions, sensitive_values
+        )
+        
+        return {
+            'statistical_parity_difference': statistical_parity_diff,
+            'equal_opportunity_difference': equal_opportunity_diff,
+            'equal_accuracy_difference': equal_accuracy_diff,
+            'is_biased': abs(statistical_parity_diff) > 0.1 or 
+                        abs(equal_opportunity_diff) > 0.1 or
+                        abs(equal_accuracy_diff) > 0.1
+        }
+    
+    def calculate_statistical_parity_difference(self, predictions: np.ndarray, 
+                                              sensitive_values: np.ndarray) -> float:
+        """통계적 패리티 차이 계산"""
+        unique_values = np.unique(sensitive_values)
+        if len(unique_values) < 2:
+            return 0.0
+        
+        positive_rates = []
+        for value in unique_values:
+            mask = sensitive_values == value
+            positive_rate = np.mean(predictions[mask])
+            positive_rates.append(positive_rate)
+        
+        return max(positive_rates) - min(positive_rates)
+    
+    def calculate_equal_opportunity_difference(self, predictions: np.ndarray, 
+                                             sensitive_values: np.ndarray) -> float:
+        """평등 기회 차이 계산"""
+        # 실제 구현에서는 실제 레이블 필요
+        # 여기서는 예시로 0을 반환
+        return 0.0
+    
+    def calculate_equal_accuracy_difference(self, predictions: np.ndarray, 
+                                          sensitive_values: np.ndarray) -> float:
+        """평등 정확도 차이 계산"""
+        # 실제 구현에서는 실제 레이블 필요
+        # 여기서는 예시로 0을 반환
+        return 0.0
+
+# 모델 드리프트 감지
+class ModelDriftDetector:
+    def __init__(self, baseline_data: np.ndarray, drift_threshold: float = 0.05):
+        self.baseline_data = baseline_data
+        self.drift_threshold = drift_threshold
+        self.baseline_stats = self.calculate_data_statistics(baseline_data)
+    
+    def detect_drift(self, current_data: np.ndarray) -> Dict[str, Any]:
+        """데이터 드리프트 감지"""
+        current_stats = self.calculate_data_statistics(current_data)
+        
+        drift_metrics = {}
+        for feature in self.baseline_stats.keys():
+            baseline_mean = self.baseline_stats[feature]['mean']
+            baseline_std = self.baseline_stats[feature]['std']
+            current_mean = current_stats[feature]['mean']
+            current_std = current_stats[feature]['std']
+            
+            # 평균 드리프트
+            mean_drift = abs(current_mean - baseline_mean) / baseline_std
+            # 표준편차 드리프트
+            std_drift = abs(current_std - baseline_std) / baseline_std
+            
+            drift_metrics[feature] = {
+                'mean_drift': mean_drift,
+                'std_drift': std_drift,
+                'is_drifted': mean_drift > self.drift_threshold or 
+                             std_drift > self.drift_threshold
+            }
+        
+        return drift_metrics
+    
+    def calculate_data_statistics(self, data: np.ndarray) -> Dict[str, Dict[str, float]]:
+        """데이터 통계 계산"""
+        stats = {}
+        for i in range(data.shape[1]):
+            feature_data = data[:, i]
+            stats[f'feature_{i}'] = {
+                'mean': np.mean(feature_data),
+                'std': np.std(feature_data),
+                'min': np.min(feature_data),
+                'max': np.max(feature_data)
+            }
+        return stats
+
+# 윤리적 AI 모니터링
+class EthicalAIMonitor:
+    def __init__(self):
+        self.ethical_guidelines = {
+            'fairness': self.check_fairness,
+            'transparency': self.check_transparency,
+            'accountability': self.check_accountability,
+            'privacy': self.check_privacy
+        }
+    
+    def evaluate_ethical_compliance(self, model, data: np.ndarray, 
+                                  predictions: np.ndarray) -> Dict[str, bool]:
+        """윤리적 준수 평가"""
+        compliance = {}
+        
+        for guideline, checker in self.ethical_guidelines.items():
+            compliance[guideline] = checker(model, data, predictions)
+        
+        return compliance
+    
+    def check_fairness(self, model, data: np.ndarray, 
+                      predictions: np.ndarray) -> bool:
+        """공정성 검사"""
+        # 실제 구현에서는 다양한 공정성 메트릭 사용
+        return True
+    
+    def check_transparency(self, model, data: np.ndarray, 
+                          predictions: np.ndarray) -> bool:
+        """투명성 검사"""
+        # 모델 해석 가능성 확인
+        return hasattr(model, 'feature_importances_') or hasattr(model, 'coef_')
+    
+    def check_accountability(self, model, data: np.ndarray, 
+                           predictions: np.ndarray) -> bool:
+        """책임성 검사"""
+        # 모델 버전 및 학습 데이터 추적 가능성 확인
+        return True
+    
+    def check_privacy(self, model, data: np.ndarray, 
+                     predictions: np.ndarray) -> bool:
+        """개인정보 보호 검사"""
+        # 데이터 익명화 및 암호화 확인
+        return True
+
+# A/B 테스트 관리
+class ABTestManager:
+    def __init__(self, traffic_split: float = 0.5):
+        self.models = {}
+        self.traffic_split = traffic_split
+        self.test_results = {}
+    
+    def add_model(self, name: str, model, version: str):
+        """모델 추가"""
+        self.models[name] = {
+            'model': model,
+            'version': version,
+            'performance': [],
+            'traffic_count': 0
+        }
+    
+    def get_model_for_request(self, user_id: str) -> str:
+        """요청에 대한 모델 선택"""
+        # 사용자 ID 기반 일관된 모델 선택
+        if hash(user_id) % 100 < self.traffic_split * 100:
+            return 'model_a'
+        else:
+            return 'model_b'
+    
+    def record_performance(self, model_name: str, metrics: Dict[str, float]):
+        """성능 기록"""
+        if model_name in self.models:
+            self.models[model_name]['performance'].append(metrics)
+            self.models[model_name]['traffic_count'] += 1
+    
+    def evaluate_test_results(self) -> Dict[str, Any]:
+        """A/B 테스트 결과 평가"""
+        results = {}
+        
+        for model_name, model_info in self.models.items():
+            if len(model_info['performance']) > 0:
+                avg_accuracy = np.mean([p['accuracy'] for p in model_info['performance']])
+                avg_latency = np.mean([p['latency'] for p in model_info['performance']])
+                
+                results[model_name] = {
+                    'avg_accuracy': avg_accuracy,
+                    'avg_latency': avg_latency,
+                    'traffic_count': model_info['traffic_count'],
+                    'version': model_info['version']
+                }
+        
+        return results
+    
+    def determine_winner(self) -> str:
+        """승자 모델 결정"""
+        results = self.evaluate_test_results()
+        
+        if len(results) < 2:
+            return list(results.keys())[0] if results else None
+        
+        # 정확도와 지연시간을 고려한 종합 점수 계산
+        scores = {}
+        for model_name, metrics in results.items():
+            accuracy_score = metrics['avg_accuracy']
+            latency_score = 1.0 / (1.0 + metrics['avg_latency'])  # 지연시간이 낮을수록 높은 점수
+            scores[model_name] = 0.7 * accuracy_score + 0.3 * latency_score
+        
+        return max(scores, key=scores.get)
+
+# 자동 롤백 시스템
+class AutoRollbackManager:
+    def __init__(self, performance_threshold: float = 0.8):
+        self.performance_threshold = performance_threshold
+        self.rollback_history = []
+    
+    def check_performance_degradation(self, current_model: str, 
+                                    baseline_performance: float) -> bool:
+        """성능 저하 확인"""
+        current_performance = self.get_current_performance(current_model)
+        
+        if current_performance < baseline_performance * self.performance_threshold:
+            logger.warning(f"Performance degradation detected: {current_performance} < {baseline_performance * self.performance_threshold}")
+            return True
+        
+        return False
+    
+    def execute_rollback(self, current_model: str, fallback_model: str) -> bool:
+        """롤백 실행"""
+        try:
+            # 모델 전환
+            self.switch_model(current_model, fallback_model)
+            
+            # 롤백 기록
+            self.rollback_history.append({
+                'timestamp': datetime.utcnow(),
+                'from_model': current_model,
+                'to_model': fallback_model,
+                'reason': 'performance_degradation'
+            })
+            
+            logger.info(f"Rollback executed: {current_model} -> {fallback_model}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Rollback failed: {e}")
+            return False
+    
+    def get_current_performance(self, model_name: str) -> float:
+        """현재 성능 조회"""
+        # 실제 구현에서는 모델 성능 메트릭 수집
+        return 0.85  # 예시 값
+    
+    def switch_model(self, from_model: str, to_model: str):
+        """모델 전환"""
+        # 실제 구현에서는 모델 서빙 시스템에서 모델 전환
+        logger.info(f"Switching model: {from_model} -> {to_model}")
+```
+
+## AI 거버넌스 체크리스트
+- [ ] 모델 해석 가능성 시스템 구현
+- [ ] 편향 감지 알고리즘 구현
+- [ ] 모델 드리프트 감지 시스템 구축
+- [ ] 윤리적 AI 평가 프레임워크 구축
+- [ ] A/B 테스트 환경 및 자동화 시스템
+- [ ] 자동 롤백 시스템 구현
+- [ ] 모델 성능 모니터링 대시보드
+- [ ] AI 거버넌스 정책 문서화
+description:
+globs:
+alwaysApply: false
+---
+ 

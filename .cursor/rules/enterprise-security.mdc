@@ -1,0 +1,512 @@
+---
+description: "엔터프라이즈 보안 강화 지침 - HSM, 제로 트러스트, 생체인식"
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+# 엔터프라이즈 보안 강화 지침 (MANDATORY)
+
+## 보안 요구사항
+- **제로 트러스트**: 모든 접근 검증
+- **HSM (Hardware Security Module)**: 키 관리
+- **생체인식**: 다중 인증 필수
+- **네트워크 분리**: DMZ, 서브넷 분리
+- **침입 탐지**: 실시간 보안 모니터링
+- **취약점 스캔**: 정기적 자동 스캔
+
+## 보안 구현 예시
+```python
+import hashlib
+import hmac
+import os
+import jwt
+import bcrypt
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
+
+# HSM 키 관리
+class HSMKeyManager:
+    def __init__(self, hsm_connection_string: str):
+        self.hsm = self.connect_hsm(hsm_connection_string)
+        self.key_cache = {}
+    
+    def connect_hsm(self, connection_string: str):
+        """HSM 연결"""
+        # 실제 구현에서는 HSM SDK 사용
+        # 예: AWS CloudHSM, Azure Key Vault HSM, Google Cloud HSM
+        logger.info(f"Connecting to HSM: {connection_string}")
+        return None  # 예시
+    
+    def generate_key(self, key_type: str, key_size: int = 256) -> str:
+        """HSM에서 키 생성"""
+        key_id = f"{key_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        
+        # HSM을 통한 키 생성
+        # self.hsm.generate_key(key_id, key_type, key_size)
+        
+        self.key_cache[key_id] = {
+            'type': key_type,
+            'size': key_size,
+            'created_at': datetime.utcnow()
+        }
+        
+        logger.info(f"Generated HSM key: {key_id}")
+        return key_id
+    
+    def encrypt_sensitive_data(self, data: str, key_id: str) -> str:
+        """HSM을 통한 데이터 암호화"""
+        try:
+            # HSM을 통한 암호화
+            # encrypted_data = self.hsm.encrypt(key_id, data.encode())
+            
+            # 예시 구현
+            encrypted_data = self._mock_encrypt(data, key_id)
+            
+            logger.info(f"Encrypted data with HSM key: {key_id}")
+            return encrypted_data
+            
+        except Exception as e:
+            logger.error(f"HSM encryption failed: {e}")
+            raise
+    
+    def decrypt_sensitive_data(self, encrypted_data: str, key_id: str) -> str:
+        """HSM을 통한 데이터 복호화"""
+        try:
+            # HSM을 통한 복호화
+            # decrypted_data = self.hsm.decrypt(key_id, encrypted_data)
+            
+            # 예시 구현
+            decrypted_data = self._mock_decrypt(encrypted_data, key_id)
+            
+            logger.info(f"Decrypted data with HSM key: {key_id}")
+            return decrypted_data
+            
+        except Exception as e:
+            logger.error(f"HSM decryption failed: {e}")
+            raise
+    
+    def sign_transaction(self, transaction_data: dict, key_id: str) -> str:
+        """HSM을 통한 디지털 서명"""
+        try:
+            data_string = self._serialize_transaction(transaction_data)
+            
+            # HSM을 통한 서명
+            # signature = self.hsm.sign(key_id, data_string.encode())
+            
+            # 예시 구현
+            signature = self._mock_sign(data_string, key_id)
+            
+            logger.info(f"Signed transaction with HSM key: {key_id}")
+            return signature
+            
+        except Exception as e:
+            logger.error(f"HSM signing failed: {e}")
+            raise
+    
+    def _mock_encrypt(self, data: str, key_id: str) -> str:
+        """예시 암호화 구현"""
+        return f"encrypted_{data}_{key_id}"
+    
+    def _mock_decrypt(self, encrypted_data: str, key_id: str) -> str:
+        """예시 복호화 구현"""
+        return encrypted_data.replace(f"encrypted_", "").replace(f"_{key_id}", "")
+    
+    def _mock_sign(self, data: str, key_id: str) -> str:
+        """예시 서명 구현"""
+        return f"signature_{hashlib.sha256(data.encode()).hexdigest()}_{key_id}"
+    
+    def _serialize_transaction(self, transaction: dict) -> str:
+        """거래 데이터 직렬화"""
+        return str(sorted(transaction.items()))
+
+# 제로 트러스트 접근 제어
+class ZeroTrustAccessControl:
+    def __init__(self):
+        self.trust_engine = TrustEngine()
+        self.access_policy = AccessPolicy()
+        self.behavior_analyzer = BehaviorAnalyzer()
+        self.device_manager = DeviceManager()
+    
+    async def verify_access(self, user_id: str, resource: str, action: str, 
+                          context: Dict[str, Any]) -> Dict[str, Any]:
+        """제로 트러스트 접근 검증"""
+        try:
+            # 1. 사용자 신원 확인
+            user_identity = await self.verify_identity(user_id, context)
+            
+            # 2. 디바이스 신뢰도 확인
+            device_trust = await self.verify_device(user_id, context)
+            
+            # 3. 네트워크 신뢰도 확인
+            network_trust = await self.verify_network(user_id, context)
+            
+            # 4. 행동 패턴 분석
+            behavior_trust = await self.analyze_behavior(user_id, context)
+            
+            # 5. 종합 신뢰도 계산
+            total_trust = self.calculate_trust_score([
+                user_identity, device_trust, network_trust, behavior_trust
+            ])
+            
+            # 6. 접근 정책 적용
+            access_granted = self.access_policy.evaluate(total_trust, resource, action)
+            
+            # 7. 접근 로그 기록
+            await self.log_access_attempt(user_id, resource, action, access_granted, total_trust)
+            
+            return {
+                'access_granted': access_granted,
+                'trust_score': total_trust,
+                'reason': 'Access granted' if access_granted else 'Insufficient trust',
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Access verification failed: {e}")
+            return {
+                'access_granted': False,
+                'trust_score': 0.0,
+                'reason': f'Verification error: {str(e)}',
+                'timestamp': datetime.utcnow().isoformat()
+            }
+    
+    async def verify_identity(self, user_id: str, context: Dict[str, Any]) -> float:
+        """사용자 신원 확인"""
+        # 다중 인증 확인
+        auth_factors = context.get('auth_factors', [])
+        
+        trust_score = 0.0
+        
+        # 비밀번호 인증
+        if 'password' in auth_factors:
+            trust_score += 0.3
+        
+        # 2FA 인증
+        if '2fa' in auth_factors:
+            trust_score += 0.3
+        
+        # 생체인식 인증
+        if 'biometric' in auth_factors:
+            trust_score += 0.4
+        
+        # 하드웨어 토큰
+        if 'hardware_token' in auth_factors:
+            trust_score += 0.2
+        
+        return min(trust_score, 1.0)
+    
+    async def verify_device(self, user_id: str, context: Dict[str, Any]) -> float:
+        """디바이스 신뢰도 확인"""
+        device_info = context.get('device_info', {})
+        
+        trust_score = 0.0
+        
+        # 디바이스 등록 여부
+        if device_info.get('is_registered', False):
+            trust_score += 0.3
+        
+        # 디바이스 상태
+        if device_info.get('is_healthy', False):
+            trust_score += 0.2
+        
+        # 최신 보안 패치
+        if device_info.get('has_latest_patches', False):
+            trust_score += 0.2
+        
+        # 디바이스 위치
+        if device_info.get('is_in_trusted_location', False):
+            trust_score += 0.3
+        
+        return min(trust_score, 1.0)
+    
+    async def verify_network(self, user_id: str, context: Dict[str, Any]) -> float:
+        """네트워크 신뢰도 확인"""
+        network_info = context.get('network_info', {})
+        
+        trust_score = 0.0
+        
+        # VPN 사용
+        if network_info.get('is_vpn', False):
+            trust_score += 0.3
+        
+        # 신뢰할 수 있는 네트워크
+        if network_info.get('is_trusted_network', False):
+            trust_score += 0.4
+        
+        # 네트워크 암호화
+        if network_info.get('is_encrypted', False):
+            trust_score += 0.2
+        
+        # 네트워크 상태
+        if network_info.get('is_stable', False):
+            trust_score += 0.1
+        
+        return min(trust_score, 1.0)
+    
+    async def analyze_behavior(self, user_id: str, context: Dict[str, Any]) -> float:
+        """행동 패턴 분석"""
+        behavior_info = context.get('behavior_info', {})
+        
+        trust_score = 0.5  # 기본 점수
+        
+        # 시간 패턴
+        if behavior_info.get('is_normal_time', False):
+            trust_score += 0.2
+        
+        # 위치 패턴
+        if behavior_info.get('is_normal_location', False):
+            trust_score += 0.2
+        
+        # 행동 패턴
+        if behavior_info.get('is_normal_behavior', False):
+            trust_score += 0.1
+        
+        return min(trust_score, 1.0)
+    
+    def calculate_trust_score(self, trust_scores: List[float]) -> float:
+        """종합 신뢰도 계산"""
+        if not trust_scores:
+            return 0.0
+        
+        # 가중 평균 계산
+        weights = [0.4, 0.2, 0.2, 0.2]  # 신원, 디바이스, 네트워크, 행동
+        weighted_sum = sum(score * weight for score, weight in zip(trust_scores, weights))
+        
+        return min(weighted_sum, 1.0)
+    
+    async def log_access_attempt(self, user_id: str, resource: str, action: str, 
+                               granted: bool, trust_score: float):
+        """접근 시도 로그 기록"""
+        log_entry = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'user_id': user_id,
+            'resource': resource,
+            'action': action,
+            'access_granted': granted,
+            'trust_score': trust_score,
+            'ip_address': context.get('ip_address'),
+            'user_agent': context.get('user_agent')
+        }
+        
+        logger.info(f"Access attempt logged: {log_entry}")
+
+# 침입 탐지 시스템
+class IntrusionDetectionSystem:
+    def __init__(self):
+        self.threat_patterns = self.load_threat_patterns()
+        self.anomaly_detector = AnomalyDetector()
+        self.alert_manager = AlertManager()
+    
+    def monitor_activity(self, activity: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """활동 모니터링"""
+        alerts = []
+        
+        # 1. 패턴 기반 탐지
+        pattern_alerts = self.detect_pattern_threats(activity)
+        alerts.extend(pattern_alerts)
+        
+        # 2. 이상 탐지
+        anomaly_alerts = self.detect_anomalies(activity)
+        alerts.extend(anomaly_alerts)
+        
+        # 3. 알림 발송
+        if alerts:
+            self.alert_manager.send_alerts(alerts)
+        
+        return alerts
+    
+    def detect_pattern_threats(self, activity: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """패턴 기반 위협 탐지"""
+        alerts = []
+        
+        for pattern_name, pattern in self.threat_patterns.items():
+            if self.matches_pattern(activity, pattern):
+                alerts.append({
+                    'type': 'pattern_threat',
+                    'pattern': pattern_name,
+                    'severity': pattern.get('severity', 'medium'),
+                    'description': pattern.get('description', ''),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'activity': activity
+                })
+        
+        return alerts
+    
+    def detect_anomalies(self, activity: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """이상 탐지"""
+        anomalies = self.anomaly_detector.detect(activity)
+        
+        alerts = []
+        for anomaly in anomalies:
+            alerts.append({
+                'type': 'anomaly',
+                'severity': 'high',
+                'description': f'Anomaly detected: {anomaly["type"]}',
+                'timestamp': datetime.utcnow().isoformat(),
+                'activity': activity,
+                'anomaly_score': anomaly.get('score', 0.0)
+            })
+        
+        return alerts
+    
+    def matches_pattern(self, activity: Dict[str, Any], pattern: Dict[str, Any]) -> bool:
+        """패턴 매칭"""
+        # 실제 구현에서는 더 정교한 패턴 매칭 알고리즘 사용
+        return False
+    
+    def load_threat_patterns(self) -> Dict[str, Dict[str, Any]]:
+        """위협 패턴 로드"""
+        return {
+            'brute_force': {
+                'description': 'Brute force attack pattern',
+                'severity': 'high',
+                'conditions': ['multiple_failed_logins', 'short_time_interval']
+            },
+            'data_exfiltration': {
+                'description': 'Data exfiltration pattern',
+                'severity': 'critical',
+                'conditions': ['large_data_transfer', 'unusual_destination']
+            },
+            'privilege_escalation': {
+                'description': 'Privilege escalation attempt',
+                'severity': 'high',
+                'conditions': ['unusual_permission_request', 'admin_access_attempt']
+            }
+        }
+
+# 생체인식 인증
+class BiometricAuthentication:
+    def __init__(self):
+        self.biometric_types = ['fingerprint', 'face', 'voice', 'iris']
+        self.verification_threshold = 0.8
+    
+    async def verify_biometric(self, user_id: str, biometric_type: str, 
+                             biometric_data: bytes) -> Dict[str, Any]:
+        """생체인식 검증"""
+        try:
+            # 생체인식 데이터 검증
+            verification_score = await self.verify_biometric_data(
+                user_id, biometric_type, biometric_data
+            )
+            
+            is_verified = verification_score >= self.verification_threshold
+            
+            return {
+                'verified': is_verified,
+                'score': verification_score,
+                'biometric_type': biometric_type,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Biometric verification failed: {e}")
+            return {
+                'verified': False,
+                'score': 0.0,
+                'error': str(e),
+                'timestamp': datetime.utcnow().isoformat()
+            }
+    
+    async def verify_biometric_data(self, user_id: str, biometric_type: str, 
+                                  biometric_data: bytes) -> float:
+        """생체인식 데이터 검증"""
+        # 실제 구현에서는 생체인식 SDK 사용
+        # 예: Face ID, Touch ID, Windows Hello 등
+        
+        # 예시 구현
+        if biometric_type == 'fingerprint':
+            return 0.95  # 높은 정확도
+        elif biometric_type == 'face':
+            return 0.90  # 중간 정확도
+        elif biometric_type == 'voice':
+            return 0.85  # 중간 정확도
+        else:
+            return 0.80  # 기본 정확도
+
+# 네트워크 보안
+class NetworkSecurity:
+    def __init__(self):
+        self.firewall_rules = self.load_firewall_rules()
+        self.vpn_manager = VPNManager()
+        self.network_monitor = NetworkMonitor()
+    
+    def enforce_network_policy(self, connection: Dict[str, Any]) -> bool:
+        """네트워크 정책 적용"""
+        # 방화벽 규칙 확인
+        if not self.check_firewall_rules(connection):
+            return False
+        
+        # VPN 요구사항 확인
+        if not self.check_vpn_requirement(connection):
+            return False
+        
+        # 네트워크 모니터링
+        self.network_monitor.log_connection(connection)
+        
+        return True
+    
+    def check_firewall_rules(self, connection: Dict[str, Any]) -> bool:
+        """방화벽 규칙 확인"""
+        # 실제 구현에서는 방화벽 API 사용
+        return True
+    
+    def check_vpn_requirement(self, connection: Dict[str, Any]) -> bool:
+        """VPN 요구사항 확인"""
+        # 외부 네트워크 접근 시 VPN 필수
+        if connection.get('is_external_network', False):
+            return connection.get('is_vpn_connected', False)
+        
+        return True
+
+# 보안 모니터링
+class SecurityMonitoring:
+    def __init__(self):
+        self.monitoring_rules = self.load_monitoring_rules()
+        self.alert_manager = AlertManager()
+        self.incident_manager = IncidentManager()
+    
+    def monitor_security_events(self, event: Dict[str, Any]):
+        """보안 이벤트 모니터링"""
+        # 이벤트 분석
+        severity = self.analyze_event_severity(event)
+        
+        # 알림 발송
+        if severity in ['high', 'critical']:
+            self.alert_manager.send_security_alert(event, severity)
+        
+        # 인시던트 생성
+        if severity == 'critical':
+            self.incident_manager.create_incident(event)
+    
+    def analyze_event_severity(self, event: Dict[str, Any]) -> str:
+        """이벤트 심각도 분석"""
+        # 실제 구현에서는 더 정교한 분석 로직 사용
+        event_type = event.get('type', '')
+        
+        if event_type in ['data_breach', 'unauthorized_access']:
+            return 'critical'
+        elif event_type in ['failed_login', 'suspicious_activity']:
+            return 'high'
+        elif event_type in ['policy_violation', 'unusual_behavior']:
+            return 'medium'
+        else:
+            return 'low'
+```
+
+## 보안 강화 체크리스트
+- [ ] HSM 키 관리 시스템 구현
+- [ ] 제로 트러스트 접근 제어 구현
+- [ ] 생체인식 인증 시스템 구축
+- [ ] 침입 탐지 시스템 구축
+- [ ] 네트워크 보안 정책 적용
+- [ ] 보안 모니터링 시스템 구축
+- [ ] 취약점 스캔 자동화
+- [ ] 보안 인시던트 대응 계획 수립
+description:
+globs:
+alwaysApply: false
+---
+ 

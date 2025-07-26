@@ -1,0 +1,154 @@
+---
+description: "환경 변수 관리 규칙 - env.complete.template 기반 설정 관리"
+globs: ["**/*.py", "**/*.md", "**/*.txt"]
+alwaysApply: false
+---
+
+# Environment Management Rules
+
+## MANDATORY: Use env.complete.template for environment configuration
+
+**The user prefers working with env.complete.template instead of directly accessing the .env file, since the existing .env cannot be inspected by cursor due to permission restrictions.**
+
+### Core Rules
+- **NEVER directly access .env file** - Permission restrictions prevent inspection
+- **ALWAYS reference env.complete.template** for environment variable structure
+- **ALWAYS use env.complete.template as source of truth** for API keys and configuration
+- **ALWAYS validate environment variables** against env.complete.template structure
+
+### Environment Variable Access Pattern
+```python
+# ✅ CORRECT - Reference template structure
+import os
+from typing import Optional
+
+def get_api_config() -> dict:
+    """env.complete.template 기반 API 설정 로드"""
+    return {
+        'BINANCE_API_KEY': os.getenv('BINANCE_API_KEY', ''),
+        'BINANCE_API_SECRET': os.getenv('BINANCE_API_SECRET', ''),
+        'BINANCE_TESTNET': os.getenv('BINANCE_TESTNET', 'true').lower() == 'true',
+        'UPBIT_ACCESS_KEY': os.getenv('UPBIT_ACCESS_KEY', ''),
+        'UPBIT_SECRET_KEY': os.getenv('UPBIT_SECRET_KEY', ''),
+        'COINBASE_API_KEY': os.getenv('COINBASE_API_KEY', ''),
+        'COINBASE_API_SECRET': os.getenv('COINBASE_API_SECRET', ''),
+        'COINBASE_PASSPHRASE': os.getenv('COINBASE_PASSPHRASE', '')
+    }
+
+# ❌ WRONG - Direct .env access
+def get_api_config():
+    # 직접 .env 파일 접근 금지
+    pass
+```
+
+### Template Structure Reference
+```python
+# env.complete.template 섹션별 참조
+EXCHANGE_APIS = {
+    'binance': {
+        'api_key': 'BINANCE_API_KEY',
+        'api_secret': 'BINANCE_API_SECRET',
+        'testnet': 'BINANCE_TESTNET'
+    },
+    'upbit': {
+        'access_key': 'UPBIT_ACCESS_KEY',
+        'secret_key': 'UPBIT_SECRET_KEY'
+    },
+    'coinbase': {
+        'api_key': 'COINBASE_API_KEY',
+        'api_secret': 'COINBASE_API_SECRET',
+        'passphrase': 'COINBASE_PASSPHRASE'
+    }
+}
+```
+
+### Validation Requirements
+- **API Key Validation**: 모든 API 키가 env.complete.template에 정의된 형식과 일치하는지 확인
+- **Required Fields**: 필수 환경 변수가 설정되었는지 확인
+- **Security Levels**: 보안 레벨별 환경 변수 분류 (public, internal, secret, critical)
+- **Environment Separation**: development, staging, production 환경 분리
+
+### Configuration Loading Pattern
+```python
+class EnvironmentConfig:
+    """env.complete.template 기반 환경 설정"""
+    
+    def __init__(self):
+        self._load_from_template_structure()
+    
+    def _load_from_template_structure(self):
+        """env.complete.template 구조 기반 설정 로드"""
+        # Phase 2: 거래소 연동 섹션 참조
+        self.binance_config = self._load_binance_config()
+        self.upbit_config = self._load_upbit_config()
+        self.coinbase_config = self._load_coinbase_config()
+    
+    def _load_binance_config(self) -> dict:
+        """바이낸스 설정 로드"""
+        return {
+            'api_key': os.getenv('BINANCE_API_KEY', ''),
+            'api_secret': os.getenv('BINANCE_API_SECRET', ''),
+            'testnet': os.getenv('BINANCE_TESTNET', 'true').lower() == 'true',
+            'websocket_url': os.getenv('BINANCE_WEBSOCKET_URL', 'wss://stream.binance.com:9443/ws')
+        }
+```
+
+### Security Guidelines
+- **API Key Rotation**: 정기적인 API 키 갱신
+- **Testnet Usage**: 개발/테스트 시 테스트넷 우선 사용
+- **Permission Scoping**: 최소 권한 원칙 적용
+- **IP Whitelisting**: API 키별 IP 제한 설정
+
+### Development Workflow
+1. **Template Update**: env.complete.template에 새로운 환경 변수 추가
+2. **Code Update**: 코드에서 새로운 환경 변수 참조 추가
+3. **Validation**: 환경 변수 로드 및 검증 로직 구현
+4. **Testing**: 테스트 환경에서 환경 변수 동작 확인
+5. **Documentation**: 환경 변수 사용법 문서화
+
+### Error Handling
+```python
+def validate_environment_config() -> bool:
+    """환경 설정 검증"""
+    required_vars = [
+        'BINANCE_API_KEY',
+        'BINANCE_API_SECRET',
+        'UPBIT_ACCESS_KEY', 
+        'UPBIT_SECRET_KEY',
+        'COINBASE_API_KEY',
+        'COINBASE_API_SECRET'
+    ]
+    
+    missing_vars = []
+    for var in required_vars:
+        if not os.getenv(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {missing_vars}")
+        logger.info("Please check env.complete.template for required variables")
+        return False
+    
+    return True
+```
+
+### Migration Checklist
+When updating environment configuration:
+1. Update env.complete.template with new variables
+2. Update code to reference new variables
+3. Update validation logic
+4. Update documentation
+5. Test in development environment
+6. Deploy to staging environment
+7. Deploy to production environment
+
+### Benefits
+- **Consistency**: 모든 환경에서 동일한 설정 구조
+- **Security**: 권한 제한으로 인한 보안 강화
+- **Maintainability**: 중앙화된 설정 관리
+- **Documentation**: 설정 구조의 자동 문서화
+- **Validation**: 환경 변수 검증 자동화
+description:
+globs:
+alwaysApply: false
+---

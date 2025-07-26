@@ -1,0 +1,111 @@
+---
+description: "DateTime 처리 규칙 - timezone-aware datetime 사용, Python 3.12+ 호환성"
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# DateTime Handling Rules
+
+## MANDATORY: Use `datetime.now(timezone.utc)` instead of `datetime.utcnow()`
+
+**The user prefers using datetime.now(timezone.utc) rather than datetime.utcnow() in new code.**
+
+### Core Rules
+- **NEVER use `datetime.utcnow()`** - it's deprecated in Python 3.12+
+- **ALWAYS use `datetime.now(timezone.utc)`** for UTC timestamps
+- **ALWAYS import timezone**: `from datetime import datetime, timezone`
+- **ALWAYS ensure timezone-aware operations** when comparing datetimes
+
+### Import Pattern
+```python
+from datetime import datetime, timezone
+# NOT: from datetime import datetime
+```
+
+### Usage Examples
+```python
+# ✅ CORRECT
+current_time = datetime.now(timezone.utc)
+timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+past_time = datetime.now(timezone.utc) - timedelta(hours=2)
+
+# ❌ WRONG
+current_time = datetime.utcnow()  # DEPRECATED
+timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')  # DEPRECATED
+past_time = datetime.utcnow() - timedelta(hours=2)  # DEPRECATED
+```
+
+### Timezone-Aware Operations
+```python
+# ✅ CORRECT - Both timezone-aware
+time_diff = (datetime.now(timezone.utc) - past_time).total_seconds()
+
+# ❌ WRONG - Mixing timezone-aware and naive
+time_diff = (datetime.now(timezone.utc) - datetime.utcnow()).total_seconds()  # TypeError
+```
+
+### Database Storage
+```python
+# ✅ CORRECT
+stored_time = datetime.now(timezone.utc).isoformat()  # Includes timezone info
+
+# ❌ WRONG
+stored_time = datetime.utcnow().isoformat()  # No timezone info
+```
+
+### API Responses
+```python
+# ✅ CORRECT
+response = {
+    'timestamp': datetime.now(timezone.utc).isoformat(),
+    'created_at': datetime.now(timezone.utc).isoformat()
+}
+
+# ❌ WRONG
+response = {
+    'timestamp': datetime.utcnow().isoformat(),  # DEPRECATED
+    'created_at': datetime.utcnow().isoformat()  # DEPRECATED
+}
+```
+
+### Testing
+```python
+# ✅ CORRECT
+def test_time_comparison():
+    now = datetime.now(timezone.utc)
+    past = datetime.now(timezone.utc) - timedelta(hours=1)
+    assert (now - past).total_seconds() > 0
+
+# ❌ WRONG
+def test_time_comparison():
+    now = datetime.utcnow()  # DEPRECATED
+    past = datetime.utcnow() - timedelta(hours=1)  # DEPRECATED
+    assert (now - past).total_seconds() > 0
+```
+
+### Migration Checklist
+When updating existing code:
+1. Add `timezone` to datetime imports
+2. Replace all `datetime.utcnow()` with `datetime.now(timezone.utc)`
+3. Ensure all datetime comparisons are timezone-aware
+4. Update test cases to use timezone-aware datetimes
+5. Verify database storage includes timezone information
+6. Update API documentation to reflect timezone-aware responses
+
+### Benefits
+- **Future-proof**: Compatible with Python 3.12+ and future versions
+- **Explicit**: Clear indication that UTC timezone is intended
+- **Consistent**: All datetime operations use the same pattern
+- **Reliable**: No timezone-related bugs or warnings
+- **Standards-compliant**: Follows Python datetime best practices
+
+### Enforcement
+- All new code must follow these rules
+- Existing code should be migrated when modified
+- Code reviews must check for datetime usage compliance
+- Automated tests should verify timezone-aware operations
+- CI/CD pipeline should flag deprecated datetime usage
+description:
+globs:
+alwaysApply: false
+---

@@ -1,0 +1,88 @@
+---
+description: "보안 필수사항 - 인증, 인가, 데이터 검증, 암호화"
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+# 보안 필수사항
+
+## 환경 변수 보안
+- **API 키 관리**: env.complete.template 기반 환경 변수 사용
+- **보안 레벨 분류**: public, internal, secret, critical 구분
+- **필수 변수 검증**: API_KEY, DB_PASSWORD 등 필수 변수 확인
+- **환경별 설정**: development, staging, production 환경 분리
+
+## 인증/인가
+- **모든 API 엔드포인트**: 인증 필수
+- **관리자 기능**: RBAC 권한 검증 필수
+- **세션 관리**: JWT 토큰 사용
+- **비밀번호**: bcrypt 해싱 필수
+
+## 데이터 검증
+- **모든 입력값**: 타입 검증 필수
+- **SQL Injection 방지**: 파라미터화된 쿼리 사용
+- **XSS 방지**: 입력값 이스케이프 처리
+- **파일 업로드**: 확장자 및 크기 제한
+
+## 보안 구현 예시
+```python
+# 환경 변수 보안 관리
+import os
+from typing import Optional
+from dataclasses import dataclass
+
+@dataclass
+class EnvironmentConfig:
+    """환경 변수 설정 클래스"""
+    api_key: str
+    api_secret: str
+    database_url: str
+    redis_url: str
+    
+    @classmethod
+    def from_env(cls) -> 'EnvironmentConfig':
+        """env.complete.template 기반 환경 변수 로드"""
+        return cls(
+            api_key=os.getenv('BINANCE_API_KEY', ''),
+            api_secret=os.getenv('BINANCE_API_SECRET', ''),
+            database_url=os.getenv('DATABASE_URL', ''),
+            redis_url=os.getenv('REDIS_URL', '')
+        )
+    
+    def validate_required(self) -> bool:
+        """필수 환경 변수 검증"""
+        required_vars = [
+            self.api_key, self.api_secret, 
+            self.database_url, self.redis_url
+        ]
+        return all(var for var in required_vars)
+
+# 인증 데코레이터
+@require_auth
+def protected_endpoint():
+    pass
+
+# 데이터 검증
+from pydantic import BaseModel, validator
+
+class UserInput(BaseModel):
+    username: str
+    email: str
+    
+    @validator('email')
+    def validate_email(cls, v):
+        if '@' not in v:
+            raise ValueError('유효한 이메일이 아닙니다')
+        return v
+
+# 비밀번호 해싱
+import bcrypt
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+# SQL Injection 방지
+def get_user(user_id: int):
+    # 올바른 방법: 파라미터화된 쿼리
+    return db.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+```

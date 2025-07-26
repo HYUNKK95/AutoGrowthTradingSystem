@@ -1,0 +1,99 @@
+---
+description: "로깅 규칙 - 로그 레벨, 형식, 구조화된 로깅"
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+# 로깅 규칙
+
+## 로그 레벨
+- **ERROR**: 시스템 오류, 복구 불가능한 문제
+- **WARN**: 경고, 잠재적 문제
+- **INFO**: 중요한 비즈니스 이벤트
+- **DEBUG**: 개발 디버깅 정보
+
+## 로그 형식
+```python
+logger.info(
+    "주문 처리 완료",
+    extra={
+        "order_id": order.id,
+        "user_id": order.user_id,
+        "amount": order.amount,
+        "processing_time": processing_time
+    }
+)
+```
+
+## 구조화된 로깅
+- **JSON 형식**: 로그 파싱 용이성
+- **상관관계 ID**: 요청 추적 가능
+- **컨텍스트 정보**: 환경, 버전, 서비스명
+
+## 분산 추적
+- **OpenTelemetry**: 모든 서비스에 적용
+- **스팬 추적**: 서비스 간 호출 추적
+- **메트릭 수집**: 성능 메트릭 자동 수집
+
+## 로깅 구현 예시
+```python
+import logging
+import json
+from datetime import datetime
+
+# 구조화된 로거 설정
+class StructuredLogger:
+    def __init__(self, name):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.INFO)
+        
+        # JSON 핸들러
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s", "extra": %(extra)s}'
+        )
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+    
+    def info(self, message, **kwargs):
+        extra = json.dumps(kwargs) if kwargs else "{}"
+        self.logger.info(message, extra={"extra": extra})
+    
+    def error(self, message, **kwargs):
+        extra = json.dumps(kwargs) if kwargs else "{}"
+        self.logger.error(message, extra={"extra": extra})
+
+# 사용 예시
+logger = StructuredLogger("trading_service")
+
+def process_order(order_data):
+    start_time = datetime.now()
+    
+    try:
+        # 주문 처리 로직
+        result = execute_order(order_data)
+        
+        processing_time = (datetime.now() - start_time).total_seconds()
+        logger.info(
+            "주문 처리 완료",
+            order_id=result['order_id'],
+            user_id=order_data['user_id'],
+            amount=order_data['amount'],
+            processing_time=processing_time,
+            status="success"
+        )
+        
+        return result
+        
+    except Exception as e:
+        processing_time = (datetime.now() - start_time).total_seconds()
+        logger.error(
+            "주문 처리 실패",
+            order_id=order_data.get('order_id'),
+            user_id=order_data['user_id'],
+            error=str(e),
+            processing_time=processing_time,
+            status="failed"
+        )
+        raise
+```

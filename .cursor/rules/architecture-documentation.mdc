@@ -1,0 +1,233 @@
+---
+description: "아키텍처 문서 자동화 지침 - 코드 분석, 문서 생성, 누락 요소 감지"
+globs: ["**/*.py", "**/*.md", "**/*.yaml", "**/*.yml"]
+alwaysApply: true
+---
+
+# 아키텍처 문서 자동화 지침 (MANDATORY)
+
+## 아키텍처 문서 관리 요구사항
+- **실시간 분석**: 파일 변경 시 즉시 아키텍처 분석 실행
+- **누락 요소 감지**: 함수, 변수, 클래스 누락 자동 감지
+- **환경 변수 문서화**: env.complete.template 기반 환경 변수 분석
+- **의존성 매핑**: 컴포넌트 간 의존성 관계 자동 분석
+- **문서 일치성**: 코드와 문서 간 일치성 실시간 검증
+
+## 아키텍처 문서 자동화 구현 예시
+```python
+# architecture_doc_manager.py 실행
+import subprocess
+import sys
+from pathlib import Path
+
+def run_architecture_analysis():
+    """아키텍처 분석 실행"""
+    try:
+        # 아키텍처 문서 생성
+        result = subprocess.run([
+            sys.executable, 'architecture_doc_manager.py', 
+            '--generate', '--project-root', '.'
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("✅ 아키텍처 문서 생성 완료")
+            return True
+        else:
+            print(f"❌ 아키텍처 문서 생성 실패: {result.stderr}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 아키텍처 분석 실행 실패: {e}")
+        return False
+
+# 파일 변경 시 자동 실행
+def on_file_changed(file_path: str):
+    """파일 변경 이벤트 처리"""
+    if file_path.endswith(('.py', '.md', '.yaml', '.yml')):
+        print(f"📝 파일 변경 감지: {file_path}")
+        run_architecture_analysis()
+
+# Git 훅으로 자동 실행
+def setup_git_hooks():
+    """Git 훅 설정"""
+    hook_content = """#!/bin/sh
+# pre-commit 훅
+python architecture_doc_manager.py --generate --project-root .
+"""
+    
+    hook_path = Path('.git/hooks/pre-commit')
+    hook_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(hook_path, 'w') as f:
+        f.write(hook_content)
+    
+    hook_path.chmod(0o755)
+    print("✅ Git 훅 설정 완료")
+
+# 누락 요소 감지 및 알림
+def check_missing_elements(component_data: dict) -> List[str]:
+    """누락된 요소 감지"""
+    missing = []
+    
+    # 클래스에 __init__ 메서드 누락 확인
+    for cls in component_data.get('classes', []):
+        if not cls.get('has_init', False):
+            missing.append(f"클래스 '{cls['name']}'에 __init__ 메서드 누락")
+    
+    # 함수에 docstring 누락 확인
+    for func in component_data.get('functions', []):
+        if not func.get('docstring'):
+            missing.append(f"함수 '{func['name']}'에 docstring 누락")
+    
+    # 클래스에 docstring 누락 확인
+    for cls in component_data.get('classes', []):
+        if not cls.get('docstring'):
+            missing.append(f"클래스 '{cls['name']}'에 docstring 누락")
+    
+    return missing
+
+# 환경 변수 분석
+def analyze_environment_variables():
+    """환경 변수 분석"""
+    env_template_path = Path("env.complete.template")
+    
+    if not env_template_path.exists():
+        print("⚠️ env.complete.template 파일이 없습니다")
+        return {}
+    
+    env_variables = {}
+    
+    with open(env_template_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # 섹션별로 파싱
+    sections = parse_env_sections(content)
+    
+    for section_name, section_content in sections.items():
+        variables = parse_env_section(section_name, section_content)
+        env_variables.update(variables)
+    
+    return env_variables
+
+def parse_env_sections(content: str) -> Dict[str, str]:
+    """환경 변수 섹션 파싱"""
+    sections = {}
+    current_section = "default"
+    current_content = []
+    
+    for line in content.split('\n'):
+        if line.startswith('# ========================================'):
+            if current_content:
+                sections[current_section] = '\n'.join(current_content)
+            current_section = line.strip('# =').strip()
+            current_content = []
+        else:
+            current_content.append(line)
+    
+    if current_content:
+        sections[current_section] = '\n'.join(current_content)
+    
+    return sections
+
+def parse_env_section(section_name: str, content: str) -> Dict[str, dict]:
+    """환경 변수 섹션 파싱"""
+    variables = {}
+    
+    for line in content.split('\n'):
+        line = line.strip()
+        
+        # 주석 제거
+        if line.startswith('#') or not line:
+            continue
+        
+        # 환경 변수 파싱
+        if '=' in line:
+            var_name, var_value = line.split('=', 1)
+            var_name = var_name.strip()
+            var_value = var_value.strip()
+            
+            # 보안 레벨 결정
+            security_level = determine_security_level(var_name, var_value)
+            
+            # 필수 여부 결정
+            required = is_required_variable(var_name)
+            
+            variables[var_name] = {
+                'name': var_name,
+                'value': var_value,
+                'section': section_name,
+                'required': required,
+                'security_level': security_level,
+                'description': f"{section_name} 섹션의 {var_name}"
+            }
+    
+    return variables
+
+def determine_security_level(var_name: str, var_value: str) -> str:
+    """보안 레벨 결정"""
+    import re
+    
+    secret_patterns = [
+        r'API_KEY', r'API_SECRET', r'PASSWORD', r'TOKEN', 
+        r'PRIVATE_KEY', r'SECRET', r'ACCESS_KEY'
+    ]
+    
+    for pattern in secret_patterns:
+        if re.search(pattern, var_name, re.IGNORECASE):
+            return 'secret'
+    
+    if 'PASSWORD' in var_name.upper():
+        return 'critical'
+    
+    if var_name.startswith('DB_') or 'DATABASE' in var_name.upper():
+        return 'internal'
+    
+    return 'public'
+
+def is_required_variable(var_name: str) -> bool:
+    """필수 변수 여부 결정"""
+    import re
+    
+    required_patterns = [
+        r'API_KEY', r'API_SECRET', r'DB_PASSWORD', 
+        r'DB_HOST', r'DB_NAME', r'REDIS_URL'
+    ]
+    
+    for pattern in required_patterns:
+        if re.search(pattern, var_name, re.IGNORECASE):
+            return True
+    
+    return False
+```
+
+## 아키텍처 문서 자동화 체크리스트
+- [ ] architecture_doc_manager.py 파일이 프로젝트 루트에 존재
+- [ ] env.complete.template 파일이 프로젝트 루트에 존재
+- [ ] 파일 변경 시 자동 아키텍처 분석 실행
+- [ ] 누락된 함수/변수/클래스 자동 감지
+- [ ] 환경 변수 분석 및 문서화
+- [ ] 의존성 관계 자동 매핑
+- [ ] 문서 일치성 실시간 검증
+- [ ] Git 훅을 통한 자동 실행
+
+## 아키텍처 문서 품질 기준
+- **완전성**: 모든 컴포넌트가 문서화되어야 함
+- **정확성**: 코드와 문서가 일치해야 함
+- **최신성**: 파일 변경 시 즉시 업데이트되어야 함
+- **가독성**: 명확하고 이해하기 쉬운 문서여야 함
+- **구조화**: 체계적으로 정리된 문서여야 함
+
+## 자동화 실행 방법
+```bash
+# 아키텍처 문서 생성
+python architecture_doc_manager.py --generate
+
+# 실시간 감시 모드
+python architecture_doc_manager.py --watch
+
+# 문서 일치성 검증
+python architecture_doc_manager.py --verify
+
+# 환경 변수 분석
+python architecture_doc_manager.py --analyze-env
+```

@@ -1,0 +1,53 @@
+---
+description: "코드 작성 규칙 - 파일명, 함수명, 클래스명 명명 규칙"
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+# 코드 작성 규칙
+
+## 파일 및 디렉토리 명명
+- **Python 파일**: snake_case (예: `user_service.py`)
+- **클래스 파일**: PascalCase (예: `TradingOrder.py`)
+- **디렉토리**: snake_case (예: `api_gateway/`)
+- **상수**: UPPER_SNAKE_CASE (예: `MAX_RETRY_COUNT`)
+- **변수/함수**: snake_case (예: `get_user_balance()`)
+
+## 함수 작성 규칙
+모든 함수는 다음과 같은 형식을 따라야 합니다:
+
+```python
+def process_trading_order(order_data: dict) -> dict:
+    """
+    거래 주문을 처리합니다.
+    
+    Args:
+        order_data: 주문 데이터
+        
+    Returns:
+        처리 결과
+        
+    Raises:
+        ValidationError: 데이터 검증 실패 시
+        ProcessingError: 처리 중 오류 발생 시
+    """
+    # 함수 본문
+    pass
+```
+
+## 클래스 작성 규칙
+모든 클래스는 다음과 같은 형식을 따라야 합니다:
+
+```python
+class TradingService:
+    """거래 서비스 클래스"""
+    
+    def __init__(self, config: dict):
+        """초기화"""
+        self.config = config
+        self._validate_config()
+    
+    def place_order(self, order: dict) -> dict:
+        """주문을 처리합니다."""
+        pass
+```

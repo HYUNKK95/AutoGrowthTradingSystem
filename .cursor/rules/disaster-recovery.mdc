@@ -1,0 +1,607 @@
+---
+description: "재해 복구 및 비즈니스 연속성 지침 - RTO/RPO, 다중 리전 백업"
+globs: ["**/*.py", "**/*.yaml", "**/*.yml"]
+alwaysApply: true
+---
+
+# 재해 복구 및 비즈니스 연속성 지침 (MANDATORY)
+
+## 재해 복구 요구사항
+- **RTO (Recovery Time Objective)**: < 15분
+- **RPO (Recovery Point Objective)**: < 1분
+- **다중 리전 백업**: 3개 이상 리전에 데이터 백업
+- **자동 장애 복구**: 장애 감지 시 자동 복구 시스템
+- **데이터 동기화**: 실시간 데이터 복제 및 동기화
+- **비즈니스 연속성**: 24/7 서비스 중단 없는 운영
+
+## 재해 복구 구현 예시
+```python
+import asyncio
+import json
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
+
+# 재해 복구 관리자
+class DisasterRecoveryManager:
+    def __init__(self):
+        self.rto_target = timedelta(minutes=15)
+        self.rpo_target = timedelta(minutes=1)
+        self.backup_regions = ['us-east-1', 'us-west-2', 'eu-west-1']
+        self.recovery_procedures = self.load_recovery_procedures()
+        self.monitoring_system = RecoveryMonitoringSystem()
+    
+    async def handle_disaster(self, disaster_type: str, 
+                            affected_components: List[str]) -> Dict[str, Any]:
+        """재해 상황 처리"""
+        start_time = datetime.utcnow()
+        
+        try:
+            # 1. 재해 감지 및 알림
+            await self.detect_disaster(disaster_type, affected_components)
+            
+            # 2. 자동 복구 실행
+            recovery_success = await self.execute_recovery(disaster_type, affected_components)
+            
+            # 3. RTO/RPO 확인
+            recovery_time = datetime.utcnow() - start_time
+            rto_compliance = recovery_time <= self.rto_target
+            
+            # 4. 복구 결과 기록
+            await self.record_recovery_result(
+                disaster_type, recovery_success, recovery_time, rto_compliance
+            )
+            
+            return {
+                'disaster_type': disaster_type,
+                'recovery_success': recovery_success,
+                'recovery_time': recovery_time.total_seconds(),
+                'rto_compliance': rto_compliance,
+                'affected_components': affected_components
+            }
+            
+        except Exception as e:
+            logger.error(f"Disaster recovery failed: {e}")
+            return {
+                'disaster_type': disaster_type,
+                'recovery_success': False,
+                'error': str(e),
+                'recovery_time': (datetime.utcnow() - start_time).total_seconds()
+            }
+    
+    async def detect_disaster(self, disaster_type: str, 
+                            affected_components: List[str]):
+        """재해 감지 및 알림"""
+        logger.critical(f"Disaster detected: {disaster_type}")
+        logger.critical(f"Affected components: {affected_components}")
+        
+        # 알림 발송
+        await self.send_disaster_alerts(disaster_type, affected_components)
+        
+        # 재해 상황 기록
+        await self.record_disaster_event(disaster_type, affected_components)
+    
+    async def execute_recovery(self, disaster_type: str, 
+                             affected_components: List[str]) -> bool:
+        """자동 복구 실행"""
+        try:
+            # 1. 백업 데이터 확인
+            backup_status = await self.verify_backup_data()
+            if not backup_status['available']:
+                logger.error("Backup data not available")
+                return False
+            
+            # 2. 복구 절차 실행
+            for component in affected_components:
+                recovery_procedure = self.recovery_procedures.get(component)
+                if recovery_procedure:
+                    success = await self.execute_recovery_procedure(
+                        component, recovery_procedure
+                    )
+                    if not success:
+                        logger.error(f"Recovery failed for component: {component}")
+                        return False
+            
+            # 3. 서비스 복구 확인
+            service_health = await self.verify_service_health()
+            if not service_health['healthy']:
+                logger.error("Service health check failed after recovery")
+                return False
+            
+            logger.info("Disaster recovery completed successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Recovery execution failed: {e}")
+            return False
+    
+    async def verify_backup_data(self) -> Dict[str, Any]:
+        """백업 데이터 확인"""
+        backup_status = {
+            'available': True,
+            'regions': {},
+            'last_backup_time': None
+        }
+        
+        for region in self.backup_regions:
+            region_status = await self.check_region_backup(region)
+            backup_status['regions'][region] = region_status
+            
+            if not region_status['available']:
+                backup_status['available'] = False
+            
+            if region_status['last_backup_time']:
+                if not backup_status['last_backup_time'] or \
+                   region_status['last_backup_time'] > backup_status['last_backup_time']:
+                    backup_status['last_backup_time'] = region_status['last_backup_time']
+        
+        return backup_status
+    
+    async def check_region_backup(self, region: str) -> Dict[str, Any]:
+        """리전별 백업 상태 확인"""
+        # 실제 구현에서는 클라우드 백업 API 사용
+        return {
+            'available': True,
+            'last_backup_time': datetime.utcnow() - timedelta(minutes=30),
+            'backup_size': '1.2TB',
+            'integrity_check': True
+        }
+    
+    async def execute_recovery_procedure(self, component: str, 
+                                       procedure: Dict[str, Any]) -> bool:
+        """복구 절차 실행"""
+        try:
+            steps = procedure.get('steps', [])
+            
+            for step in steps:
+                step_success = await self.execute_recovery_step(step)
+                if not step_success:
+                    logger.error(f"Recovery step failed: {step['name']}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Recovery procedure failed for {component}: {e}")
+            return False
+    
+    async def execute_recovery_step(self, step: Dict[str, Any]) -> bool:
+        """복구 단계 실행"""
+        step_type = step.get('type')
+        
+        if step_type == 'database_restore':
+            return await self.restore_database(step)
+        elif step_type == 'service_restart':
+            return await self.restart_service(step)
+        elif step_type == 'load_balancer_update':
+            return await self.update_load_balancer(step)
+        elif step_type == 'dns_update':
+            return await self.update_dns(step)
+        else:
+            logger.warning(f"Unknown recovery step type: {step_type}")
+            return False
+    
+    async def restore_database(self, step: Dict[str, Any]) -> bool:
+        """데이터베이스 복구"""
+        # 실제 구현에서는 데이터베이스 복구 API 사용
+        logger.info(f"Restoring database: {step.get('database_name')}")
+        await asyncio.sleep(5)  # 복구 시간 시뮬레이션
+        return True
+    
+    async def restart_service(self, step: Dict[str, Any]) -> bool:
+        """서비스 재시작"""
+        # 실제 구현에서는 서비스 관리 API 사용
+        logger.info(f"Restarting service: {step.get('service_name')}")
+        await asyncio.sleep(2)  # 재시작 시간 시뮬레이션
+        return True
+    
+    async def update_load_balancer(self, step: Dict[str, Any]) -> bool:
+        """로드 밸런서 업데이트"""
+        # 실제 구현에서는 로드 밸런서 API 사용
+        logger.info(f"Updating load balancer: {step.get('lb_name')}")
+        await asyncio.sleep(1)  # 업데이트 시간 시뮬레이션
+        return True
+    
+    async def update_dns(self, step: Dict[str, Any]) -> bool:
+        """DNS 업데이트"""
+        # 실제 구현에서는 DNS API 사용
+        logger.info(f"Updating DNS: {step.get('domain_name')}")
+        await asyncio.sleep(3)  # DNS 전파 시간 시뮬레이션
+        return True
+    
+    async def verify_service_health(self) -> Dict[str, Any]:
+        """서비스 상태 확인"""
+        health_checks = [
+            self.check_api_health(),
+            self.check_database_health(),
+            self.check_cache_health(),
+            self.check_queue_health()
+        ]
+        
+        results = await asyncio.gather(*health_checks, return_exceptions=True)
+        
+        all_healthy = all(
+            isinstance(result, dict) and result.get('healthy', False) 
+            for result in results
+        )
+        
+        return {
+            'healthy': all_healthy,
+            'checks': results
+        }
+    
+    async def check_api_health(self) -> Dict[str, Any]:
+        """API 상태 확인"""
+        # 실제 구현에서는 헬스 체크 엔드포인트 호출
+        return {'healthy': True, 'response_time': 0.1}
+    
+    async def check_database_health(self) -> Dict[str, Any]:
+        """데이터베이스 상태 확인"""
+        # 실제 구현에서는 데이터베이스 연결 확인
+        return {'healthy': True, 'connection_pool': 'active'}
+    
+    async def check_cache_health(self) -> Dict[str, Any]:
+        """캐시 상태 확인"""
+        # 실제 구현에서는 캐시 연결 확인
+        return {'healthy': True, 'hit_rate': 0.85}
+    
+    async def check_queue_health(self) -> Dict[str, Any]:
+        """큐 상태 확인"""
+        # 실제 구현에서는 메시지 큐 상태 확인
+        return {'healthy': True, 'queue_depth': 100}
+    
+    def load_recovery_procedures(self) -> Dict[str, Dict[str, Any]]:
+        """복구 절차 로드"""
+        return {
+            'api_gateway': {
+                'steps': [
+                    {
+                        'name': 'Restart API Gateway',
+                        'type': 'service_restart',
+                        'service_name': 'api-gateway'
+                    },
+                    {
+                        'name': 'Update Load Balancer',
+                        'type': 'load_balancer_update',
+                        'lb_name': 'api-lb'
+                    }
+                ]
+            },
+            'database': {
+                'steps': [
+                    {
+                        'name': 'Restore Database',
+                        'type': 'database_restore',
+                        'database_name': 'trading-db'
+                    },
+                    {
+                        'name': 'Verify Data Integrity',
+                        'type': 'data_verification',
+                        'verification_script': 'verify_db_integrity.py'
+                    }
+                ]
+            },
+            'cache': {
+                'steps': [
+                    {
+                        'name': 'Restart Cache Service',
+                        'type': 'service_restart',
+                        'service_name': 'redis-cache'
+                    },
+                    {
+                        'name': 'Warm Up Cache',
+                        'type': 'cache_warmup',
+                        'warmup_script': 'warmup_cache.py'
+                    }
+                ]
+            }
+        }
+
+# 데이터 백업 관리자
+class DataBackupManager:
+    def __init__(self):
+        self.backup_regions = ['us-east-1', 'us-west-2', 'eu-west-1']
+        self.backup_schedule = self.load_backup_schedule()
+        self.backup_retention = {
+            'daily': 7,      # 7일
+            'weekly': 4,     # 4주
+            'monthly': 12    # 12개월
+        }
+    
+    async def create_backup(self, data_type: str, 
+                          backup_type: str = 'daily') -> Dict[str, Any]:
+        """백업 생성"""
+        try:
+            backup_id = f"{data_type}_{backup_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+            
+            # 모든 리전에 백업 생성
+            backup_results = {}
+            for region in self.backup_regions:
+                result = await self.create_region_backup(
+                    backup_id, data_type, backup_type, region
+                )
+                backup_results[region] = result
+            
+            # 백업 메타데이터 저장
+            await self.save_backup_metadata(backup_id, backup_results)
+            
+            return {
+                'backup_id': backup_id,
+                'status': 'success',
+                'regions': backup_results,
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Backup creation failed: {e}")
+            return {
+                'backup_id': backup_id if 'backup_id' in locals() else None,
+                'status': 'failed',
+                'error': str(e),
+                'created_at': datetime.utcnow().isoformat()
+            }
+    
+    async def create_region_backup(self, backup_id: str, data_type: str, 
+                                 backup_type: str, region: str) -> Dict[str, Any]:
+        """리전별 백업 생성"""
+        # 실제 구현에서는 클라우드 백업 API 사용
+        logger.info(f"Creating backup in {region}: {backup_id}")
+        
+        # 백업 시간 시뮬레이션
+        await asyncio.sleep(10)
+        
+        return {
+            'region': region,
+            'backup_id': backup_id,
+            'size': '1.2TB',
+            'encryption': 'AES-256',
+            'status': 'completed',
+            'created_at': datetime.utcnow().isoformat()
+        }
+    
+    async def restore_backup(self, backup_id: str, region: str) -> Dict[str, Any]:
+        """백업 복구"""
+        try:
+            # 백업 메타데이터 조회
+            metadata = await self.get_backup_metadata(backup_id)
+            if not metadata:
+                raise ValueError(f"Backup metadata not found: {backup_id}")
+            
+            # 백업 복구 실행
+            restore_result = await self.execute_backup_restore(backup_id, region)
+            
+            return {
+                'backup_id': backup_id,
+                'region': region,
+                'status': 'success',
+                'restored_at': datetime.utcnow().isoformat(),
+                'restore_time': restore_result.get('restore_time', 0)
+            }
+            
+        except Exception as e:
+            logger.error(f"Backup restore failed: {e}")
+            return {
+                'backup_id': backup_id,
+                'region': region,
+                'status': 'failed',
+                'error': str(e),
+                'restored_at': datetime.utcnow().isoformat()
+            }
+    
+    async def execute_backup_restore(self, backup_id: str, region: str) -> Dict[str, Any]:
+        """백업 복구 실행"""
+        # 실제 구현에서는 클라우드 복구 API 사용
+        logger.info(f"Restoring backup in {region}: {backup_id}")
+        
+        # 복구 시간 시뮬레이션
+        restore_time = 15  # 15분
+        await asyncio.sleep(restore_time)
+        
+        return {
+            'restore_time': restore_time,
+            'status': 'completed'
+        }
+    
+    def load_backup_schedule(self) -> Dict[str, Any]:
+        """백업 스케줄 로드"""
+        return {
+            'daily': {
+                'time': '02:00',
+                'timezone': 'UTC',
+                'enabled': True
+            },
+            'weekly': {
+                'day': 'sunday',
+                'time': '03:00',
+                'timezone': 'UTC',
+                'enabled': True
+            },
+            'monthly': {
+                'day': 1,
+                'time': '04:00',
+                'timezone': 'UTC',
+                'enabled': True
+            }
+        }
+
+# 비즈니스 연속성 관리자
+class BusinessContinuityManager:
+    def __init__(self):
+        self.continuity_plans = self.load_continuity_plans()
+        self.failover_manager = FailoverManager()
+        self.monitoring_system = ContinuityMonitoringSystem()
+    
+    async def ensure_business_continuity(self) -> Dict[str, Any]:
+        """비즈니스 연속성 보장"""
+        try:
+            # 1. 현재 시스템 상태 확인
+            system_status = await self.check_system_status()
+            
+            # 2. 연속성 계획 실행
+            if not system_status['healthy']:
+                await self.execute_continuity_plan(system_status['issues'])
+            
+            # 3. 장애 조치 확인
+            failover_status = await self.failover_manager.check_failover_status()
+            
+            # 4. 모니터링 업데이트
+            await self.monitoring_system.update_continuity_status({
+                'system_healthy': system_status['healthy'],
+                'failover_active': failover_status['active'],
+                'last_check': datetime.utcnow().isoformat()
+            })
+            
+            return {
+                'continuity_ensured': system_status['healthy'] or failover_status['active'],
+                'system_status': system_status,
+                'failover_status': failover_status
+            }
+            
+        except Exception as e:
+            logger.error(f"Business continuity check failed: {e}")
+            return {
+                'continuity_ensured': False,
+                'error': str(e)
+            }
+    
+    async def check_system_status(self) -> Dict[str, Any]:
+        """시스템 상태 확인"""
+        health_checks = [
+            self.check_primary_system(),
+            self.check_backup_system(),
+            self.check_network_connectivity(),
+            self.check_data_integrity()
+        ]
+        
+        results = await asyncio.gather(*health_checks, return_exceptions=True)
+        
+        issues = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                issues.append(f"Health check {i} failed: {result}")
+            elif not result.get('healthy', False):
+                issues.append(f"Health check {i} unhealthy: {result.get('reason', 'Unknown')}")
+        
+        return {
+            'healthy': len(issues) == 0,
+            'issues': issues,
+            'checks': results
+        }
+    
+    async def check_primary_system(self) -> Dict[str, Any]:
+        """주 시스템 상태 확인"""
+        # 실제 구현에서는 주 시스템 헬스 체크
+        return {'healthy': True, 'response_time': 0.1}
+    
+    async def check_backup_system(self) -> Dict[str, Any]:
+        """백업 시스템 상태 확인"""
+        # 실제 구현에서는 백업 시스템 헬스 체크
+        return {'healthy': True, 'response_time': 0.2}
+    
+    async def check_network_connectivity(self) -> Dict[str, Any]:
+        """네트워크 연결 상태 확인"""
+        # 실제 구현에서는 네트워크 연결 확인
+        return {'healthy': True, 'latency': 50}
+    
+    async def check_data_integrity(self) -> Dict[str, Any]:
+        """데이터 무결성 확인"""
+        # 실제 구현에서는 데이터 무결성 검사
+        return {'healthy': True, 'integrity_score': 0.99}
+    
+    async def execute_continuity_plan(self, issues: List[str]):
+        """연속성 계획 실행"""
+        logger.warning(f"Executing continuity plan for issues: {issues}")
+        
+        for issue in issues:
+            plan = self.continuity_plans.get(issue)
+            if plan:
+                await self.execute_continuity_step(plan)
+    
+    def load_continuity_plans(self) -> Dict[str, Dict[str, Any]]:
+        """연속성 계획 로드"""
+        return {
+            'primary_system_failure': {
+                'action': 'failover_to_backup',
+                'priority': 'high',
+                'automated': True
+            },
+            'network_connectivity_issue': {
+                'action': 'switch_to_backup_network',
+                'priority': 'high',
+                'automated': True
+            },
+            'data_integrity_issue': {
+                'action': 'restore_from_backup',
+                'priority': 'critical',
+                'automated': False
+            }
+        }
+
+# 복구 모니터링 시스템
+class RecoveryMonitoringSystem:
+    def __init__(self):
+        self.metrics = {}
+        self.alerts = []
+    
+    async def record_recovery_metric(self, metric_name: str, value: float, 
+                                   tags: Dict[str, str] = None):
+        """복구 메트릭 기록"""
+        timestamp = datetime.utcnow()
+        
+        if metric_name not in self.metrics:
+            self.metrics[metric_name] = []
+        
+        self.metrics[metric_name].append({
+            'timestamp': timestamp,
+            'value': value,
+            'tags': tags or {}
+        })
+        
+        # 메트릭 임계값 확인
+        await self.check_metric_threshold(metric_name, value, tags)
+    
+    async def check_metric_threshold(self, metric_name: str, value: float, 
+                                   tags: Dict[str, str] = None):
+        """메트릭 임계값 확인"""
+        thresholds = {
+            'recovery_time': 900,  # 15분 (초)
+            'data_loss': 60,       # 1분 (초)
+            'service_downtime': 300  # 5분 (초)
+        }
+        
+        threshold = thresholds.get(metric_name)
+        if threshold and value > threshold:
+            alert = {
+                'metric': metric_name,
+                'value': value,
+                'threshold': threshold,
+                'timestamp': datetime.utcnow().isoformat(),
+                'tags': tags or {}
+            }
+            
+            self.alerts.append(alert)
+            await self.send_recovery_alert(alert)
+    
+    async def send_recovery_alert(self, alert: Dict[str, Any]):
+        """복구 알림 발송"""
+        logger.warning(f"Recovery alert: {alert}")
+        # 실제 구현에서는 알림 시스템 사용
+```
+
+## 재해 복구 체크리스트
+- [ ] RTO/RPO 목표 설정 및 모니터링
+- [ ] 다중 리전 백업 시스템 구축
+- [ ] 자동 장애 복구 시스템 구현
+- [ ] 데이터 동기화 시스템 구축
+- [ ] 비즈니스 연속성 계획 수립
+- [ ] 재해 복구 테스트 정기 실행
+- [ ] 백업 데이터 무결성 검증
+- [ ] 복구 절차 문서화 및 자동화
+description:
+globs:
+alwaysApply: false
+---
+ 

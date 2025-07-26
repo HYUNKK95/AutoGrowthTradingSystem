@@ -1,0 +1,234 @@
+---
+description: CMD 및 가상환경 사용을 강제하는 지침으로, 모든 개발 작업에서 CMD 터미널과 가상환경 사용을 필수로 하여 환경 일관성과 의존성 충돌을 방지합니다.
+globs:
+alwaysApply: true
+---
+
+# CMD 및 가상환경 실행 지침 (MANDATORY)
+
+## CMD 및 가상환경 사용 원칙
+
+### ✅ 필수 사용 규칙
+1. **모든 명령어 실행**: CMD 사용 필수
+2. **가상환경 사용**: 모든 개발 작업에서 가상환경 사용 필수
+3. **PowerShell 금지**: `&&` 연산자 문제로 인한 실행 실패 방지
+4. **환경 일관성**: 팀원 간 동일한 환경 유지
+5. **의존성 격리**: 시스템 Python과 완전 분리
+
+### ❌ 금지 사항
+1. **PowerShell 사용**: `&&` 연산자 문제
+2. **시스템 Python 사용**: 직접 시스템 Python 사용 금지
+3. **명령어 체이닝**: 복잡한 명령어 체이닝 사용
+4. **환경 불일치**: 다른 터미널 환경 또는 가상환경 사용
+5. **패키지 충돌**: 가상환경 없이 패키지 설치
+6. **오류 무시**: 명령어 실행 실패 시 무시
+
+## CMD 사용 시나리오
+
+### 1. 테스트 실행
+```cmd
+# 모듈별 테스트
+cd src
+python -m pytest tests/test_models.py -v
+python -m pytest tests/test_config.py -v
+python -m pytest tests/test_validators.py -v
+
+# 전체 테스트
+python -m pytest tests/ -v
+
+# 커버리지 테스트
+python -m pytest tests/ --cov=src --cov-report=html
+```
+
+### 2. 패키지 설치
+```cmd
+# 의존성 설치
+pip install -r requirements.txt
+
+# 개발 의존성 설치
+pip install pytest pytest-cov
+
+# 특정 패키지 설치
+pip install package_name
+```
+
+### 3. 가상환경 관리 (필수)
+```cmd
+# 가상환경 생성
+python -m venv .venv
+
+# 가상환경 활성화 (Windows CMD)
+.venv\Scripts\activate
+
+# 가상환경 활성화 (Windows PowerShell)
+.venv\Scripts\Activate.ps1
+
+# 가상환경 활성화 (Linux/Mac)
+source .venv/bin/activate
+
+# 가상환경 비활성화
+deactivate
+
+# 가상환경 상태 확인
+where python
+pip list
+```
+
+### 4. 프로젝트 실행
+```cmd
+# 메인 애플리케이션 실행
+python main.py
+
+# 모듈 실행
+python -m src.trading.order_manager
+
+# 스크립트 실행
+python scripts/setup_database.py
+```
+
+### 5. 파일 관리
+```cmd
+# 디렉토리 이동
+cd src
+cd tests
+cd ..
+
+# 파일 복사
+copy file1.txt file2.txt
+
+# 디렉토리 생성
+mkdir new_folder
+
+# 파일 삭제
+del file.txt
+```
+
+### 6. Git 작업
+```cmd
+# Git 명령어
+git status
+git add .
+git commit -m "message"
+git push
+git pull
+```
+
+### 7. 데이터베이스 작업
+```cmd
+# PostgreSQL 연결
+psql -U username -d database_name
+
+# Redis 연결
+redis-cli
+
+# 데이터베이스 마이그레이션
+python manage.py migrate
+```
+
+## CMD 사용 체크리스트
+
+### 실행 전 확인사항
+- [ ] CMD 터미널 사용 확인
+- [ ] 올바른 디렉토리 위치 확인
+- [ ] 가상환경 활성화 확인 (.venv\Scripts\activate)
+- [ ] Python 경로 확인 (.venv/Scripts/python)
+- [ ] pip 경로 확인 (.venv/Scripts/pip)
+- [ ] 필요한 환경 변수 설정 확인
+
+### 실행 중 확인사항
+- [ ] 명령어 실행 성공 여부 확인
+- [ ] 오류 메시지 기록
+- [ ] 실행 시간 측정
+- [ ] 결과 로그 저장
+
+### 실행 후 확인사항
+- [ ] 예상 결과 확인
+- [ ] 오류 발생 시 원인 분석
+- [ ] 다음 단계 계획 수립
+- [ ] 결과 문서화
+
+## PowerShell vs CMD 차이점
+
+### PowerShell 문제점
+```powershell
+# ❌ PowerShell - && 연산자 지원 안됨
+cd src && python -m pytest tests/ -v
+
+# ❌ PowerShell - 명령어 체이닝 실패
+git add . && git commit -m "message" && git push
+```
+
+### CMD 해결책
+```cmd
+# ✅ CMD - 단계별 실행
+cd src
+python -m pytest tests/ -v
+
+# ✅ CMD - 개별 명령어 실행
+git add .
+git commit -m "message"
+git push
+```
+
+## 개발 환경 설정
+
+### IDE 설정
+- **PyCharm**: 터미널을 CMD로 설정
+- **VS Code**: 기본 터미널을 CMD로 설정
+- **기타 IDE**: CMD 터미널 사용
+
+### 시스템 설정
+- **Windows**: CMD 기본 터미널 사용
+- **환경 변수**: PATH 설정 확인
+- **권한**: 관리자 권한 필요 시 확인
+
+## 오류 대응 절차
+
+### 1단계: 오류 식별
+- 명령어 실행 실패 확인
+- 오류 메시지 분석
+- 원인 파악
+
+### 2단계: 해결 방법 적용
+- CMD 사용 확인
+- 명령어 구문 검토
+- 환경 설정 확인
+
+### 3단계: 재실행
+- 수정된 명령어 실행
+- 결과 확인
+- 성공 여부 기록
+
+## 성과 지표
+
+### 목표
+- **명령어 실행 성공률**: 95% 이상
+- **가상환경 사용률**: 100%
+- **환경 일관성**: 100%
+- **의존성 충돌**: 0건
+- **오류 발생률**: 5% 이하
+- **실행 시간**: 최적화
+
+### 모니터링
+- **일일 명령어 실행 횟수**
+- **가상환경 활성화 횟수**
+- **패키지 설치/제거 횟수**
+- **의존성 충돌 발생 횟수**
+- **오류 발생 패턴**
+- **해결 시간**
+- **환경 불일치 횟수**
+
+## 관련 문서
+- [테스트 실행 지침](test-execution.mdc)
+- [프로젝트 설정 가이드](../PROJECT_SETUP_GUIDE.md)
+- [개발자 가이드](../docs/DEVELOPER_GUIDE.md)
+- [운영 가이드](../docs/OPERATIONS_GUIDE.md)
+
+description:
+globs:
+alwaysApply: false
+---
+description:
+globs:
+alwaysApply: false
+---

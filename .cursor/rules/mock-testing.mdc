@@ -1,0 +1,161 @@
+---
+description: "Mock 사용 규칙 - 단위 테스트 Mock 사용 현황 관리 및 통합 테스트 계획"
+globs: ["**/*.py", "**/*.md"]
+alwaysApply: true
+---
+
+# Mock 사용 규칙 (MANDATORY)
+
+## Mock 사용 원칙
+
+### ✅ Mock 사용이 정당한 경우
+1. **외부 의존성 격리**: 데이터베이스, API, 파일 시스템
+2. **예외 상황 시뮬레이션**: 에러 처리 로직 테스트
+3. **비용이 높은 작업**: 복잡한 계산, 네트워크 호출
+4. **시간 의존적 로직**: 날짜/시간 관련 테스트
+
+### ❌ Mock 사용이 부적절한 경우
+1. **핵심 비즈니스 로직**: 실제 로직을 Mock하면 의미 없음
+2. **테스트 통과를 위한 임의 Mock**: 실제 동작과 다른 Mock
+3. **단순한 계산 로직**: 복잡하지 않은 내부 로직
+
+## Mock 사용 현황 관리
+
+### 필수 문서화
+- **Mock 사용 시**: `docs/MOCK_SUMMARY.md`에 반드시 기록
+- **통합 테스트 계획**: Mock으로 격리된 실제 의존성 식별
+- **Mock 제거 전략**: 통합 테스트에서 실제 의존성으로 대체 계획
+
+### Mock 사용 현황 기록 형식
+```markdown
+## 📊 Mock 사용 통계
+
+### 전체 현황
+- **총 Mock 사용**: N개 메서드/의존성
+- **외부 의존성 Mock**: N개
+- **예외 상황 Mock**: N개
+- **테스트 파일 수**: N개
+
+### 모듈별 Mock 사용 현황
+
+| 모듈 | Mock 개수 | 주요 Mock 대상 | 통합 테스트 필요 |
+|------|-----------|----------------|------------------|
+| ModuleName | N | DB, API | ✅ |
+| ModuleName | N | 검증기, 이벤트 | ✅ |
+
+## 🚨 통합 테스트 필수 항목
+
+### 높은 우선순위
+1. **데이터베이스 연결 테스트**
+   - `method_name()` 실제 DB 조회
+   - 트랜잭션 테스트
+
+2. **API 연결 테스트**
+   - `method_name()` 실제 API 호출
+   - 네트워크 지연 및 오류 처리
+```
+
+## Mock 사용 예시
+
+### 데이터베이스 의존성 Mock
+```python
+@patch.object(OrderValidator, '_get_user_balance')
+def test_validate_balance_sufficient(self, mock_get_balance):
+    """잔고 검증 테스트 - DB 의존성 Mock"""
+    # Mock 설정
+    mock_get_balance.return_value = Decimal('100000.0')
+    
+    # 테스트 실행
+    result = self.validator.validate_balance('user_id', 'BTC/USDT', 'BUY', Decimal('1.0'))
+    
+    # 검증
+    assert result is True
+    mock_get_balance.assert_called_once_with('user_id', 'BTC/USDT')
+    
+    # 통합 테스트 필요사항: 실제 DB 연결 테스트
+```
+
+### API 의존성 Mock
+```python
+@patch.object(OrderValidator, '_get_current_price')
+def test_validate_balance_market_order(self, mock_get_price):
+    """시장가 주문 잔고 검증 테스트 - API 의존성 Mock"""
+    # Mock 설정
+    mock_get_price.return_value = Decimal('50000.0')
+    
+    # 테스트 실행
+    result = self.validator.validate_balance('user_id', 'BTC/USDT', 'BUY', Decimal('1.0'))
+    
+    # 검증
+    assert result is True
+    mock_get_price.assert_called_once_with('BTC/USDT')
+    
+    # 통합 테스트 필요사항: 실제 API 호출 테스트
+```
+
+### 예외 상황 Mock
+```python
+def test_exception_handling(self):
+    """예외 처리 테스트 - 예외 상황 Mock"""
+    with patch.object(self.order, 'update_status', side_effect=Exception("Test error")):
+        # 예외 상황 시뮬레이션
+        with pytest.raises(Exception):
+            self.state_machine.process_event(OrderEventType.UPDATE_STATUS, {})
+    
+    # 통합 테스트 필요사항: 실제 예외 발생 환경 테스트
+```
+
+## 통합 테스트 계획
+
+### Mock 제거 우선순위
+1. **높음**: 데이터베이스 의존성
+2. **중간**: API 의존성
+3. **낮음**: 예외 상황 시뮬레이션
+
+### 통합 테스트 체크리스트
+- [ ] 실제 데이터베이스 연결 테스트
+- [ ] 실제 API 호출 테스트
+- [ ] 네트워크 지연 및 오류 처리 테스트
+- [ ] 전체 플로우 테스트
+- [ ] 성능 및 부하 테스트
+
+## Mock vs 실제 동작 차이점
+
+### 네트워크 지연
+- **Mock**: 즉시 응답
+- **실제**: 네트워크 지연, 타임아웃
+- **영향**: 성능 테스트 불가
+
+### 데이터베이스 제약
+- **Mock**: 제약 조건 무시
+- **실제**: 외래키, 유니크 제약 등
+- **영향**: 데이터 무결성 테스트 불가
+
+### API 응답 형식
+- **Mock**: 고정된 응답
+- **실제**: 다양한 응답 형식, 오류 응답
+- **영향**: 실제 API 호환성 테스트 불가
+
+## Mock 사용 체크리스트
+
+### Mock 사용 전 확인사항
+- [ ] 외부 의존성인가?
+- [ ] 테스트 환경에서 실제 연결이 불가능한가?
+- [ ] Mock 사용이 테스트 목적에 부합하는가?
+- [ ] Mock 사용 현황을 문서화했는가?
+
+### Mock 사용 후 확인사항
+- [ ] `docs/MOCK_SUMMARY.md`에 기록했는가?
+- [ ] 통합 테스트 계획을 수립했는가?
+- [ ] Mock 제거 전략을 정의했는가?
+- [ ] Mock vs 실제 동작 차이를 인지했는가?
+
+## 관련 문서
+- [Mock 사용 현황 요약](../docs/MOCK_SUMMARY.md)
+- [상세 Mock 가이드](../docs/MOCK_USAGE_GUIDE.md)
+- [테스트 가이드](../docs/TESTING_GUIDE.md)
+
+description:
+globs:
+alwaysApply: false
+---

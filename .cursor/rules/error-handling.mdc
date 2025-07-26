@@ -1,0 +1,41 @@
+---
+description: "에러 처리 규칙 - 예외 처리, 로깅, 트랜잭션 관리"
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# 에러 처리 규칙
+
+## 필수 예외 처리
+- **모든 외부 API 호출**: try-catch 블록 필수
+- **데이터베이스 작업**: 트랜잭션 관리 필수
+- **파일 작업**: with 문 사용 필수
+- **예외 정보**: 로깅 필수
+
+## 예외 처리 예시
+```python
+# 외부 API 호출
+try:
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+except requests.RequestException as e:
+    logger.error(f"API 호출 실패: {e}")
+    raise
+
+# 데이터베이스 작업
+try:
+    with db.transaction():
+        user = db.create_user(user_data)
+        logger.info(f"사용자 생성 완료: {user.id}")
+except DatabaseError as e:
+    logger.error(f"데이터베이스 오류: {e}")
+    raise
+
+# 파일 작업
+try:
+    with open(filename, 'r') as file:
+        content = file.read()
+except FileNotFoundError as e:
+    logger.error(f"파일을 찾을 수 없음: {e}")
+    raise
+```

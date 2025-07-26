@@ -1,0 +1,61 @@
+---
+description: "금융 규정 준수 - AML/KYC, MiFID II, Dodd-Frank, GDPR 준수"
+globs: ["**/*.py", "**/*.md"]
+alwaysApply: true
+---
+
+# 금융 규정 준수 (MANDATORY)
+
+## 필수 규정 준수
+- **AML/KYC**: 자금세탁방지법, 고객확인제도 필수
+- **MiFID II**: EU 금융상품시장지침 준수
+- **Dodd-Frank**: 미국 금융개혁법 준수
+- **GDPR**: 개인정보보호법 준수
+
+## 거래 감시 및 감사
+- **거래 감시**: 이상 거래 탐지 및 보고 시스템
+- **감사 로그**: 모든 거래 및 접근 기록 보관 (7년)
+- **데이터 암호화**: 저장 및 전송 시 AES-256 암호화
+- **접근 제어**: 다중 인증, 세밀한 권한 관리
+
+## 규정 준수 구현 예시
+```python
+# AML/KYC 검증
+class KYCValidator:
+    def validate_customer(self, customer_data: dict) -> bool:
+        # 고객 신원 확인
+        if not self.verify_identity(customer_data):
+            return False
+        
+        # PEP (정치적 인물) 검사
+        if self.is_pep(customer_data):
+            return self.enhanced_due_diligence(customer_data)
+        
+        return True
+
+# 거래 감시
+class TransactionMonitor:
+    def detect_suspicious_activity(self, transaction: dict) -> bool:
+        # 대용량 거래 감지
+        if transaction['amount'] > SUSPICIOUS_THRESHOLD:
+            return True
+        
+        # 빈번한 거래 감지
+        if self.is_frequent_trading(transaction['user_id']):
+            return True
+        
+        return False
+
+# 감사 로그
+class AuditLogger:
+    def log_transaction(self, transaction: dict):
+        log_entry = {
+            'timestamp': datetime.utcnow(),
+            'user_id': transaction['user_id'],
+            'action': 'TRADE_EXECUTED',
+            'details': transaction,
+            'ip_address': get_client_ip(),
+            'session_id': get_session_id()
+        }
+        self.store_log(log_entry, retention_years=7)
+```

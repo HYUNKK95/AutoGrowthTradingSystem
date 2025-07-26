@@ -1,0 +1,102 @@
+---
+description: "AI/ML 트레이딩 특별 지침 - 모델 개발, 배포, 거버넌스"
+globs: ["**/*.py", "**/*.ipynb"]
+alwaysApply: true
+---
+
+# AI/ML 트레이딩 특별 지침
+
+## 트레이딩 모델 개발 규칙
+- **시계열 모델**: LSTM, Transformer 기반 가격 예측
+- **강화학습**: Q-Learning, DDPG 기반 거래 에이전트
+- **감정 분석**: NLP 기반 뉴스/소셜 감정 분석
+- **포트폴리오 최적화**: Modern Portfolio Theory + AI
+- **모델 버전 관리**: 모든 모델 버전 관리 필수
+- **재현 가능성**: 랜덤 시드 고정, 백테스팅 검증
+
+## 트레이딩 모델 배포 규칙
+- **실시간 추론**: 추론 지연 시간 < 10ms
+- **A/B 테스트**: 모든 모델 변경 시 A/B 테스트
+- **롤백 계획**: 모델 성능 저하 시 즉시 롤백
+- **성능 모니터링**: 실시간 수익률, 샤프 비율 추적
+- **드리프트 감지**: 시장 데이터 드리프트 자동 감지
+
+## AI/ML 구현 예시
+```python
+# 시계열 예측 모델
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+
+class PricePredictionModel:
+    def __init__(self):
+        self.model = self._build_model()
+        self.random_seed = 42
+        tf.random.set_seed(self.random_seed)
+    
+    def _build_model(self):
+        model = Sequential([
+            LSTM(50, return_sequences=True, input_shape=(60, 1)),
+            LSTM(50, return_sequences=False),
+            Dense(25),
+            Dense(1)
+        ])
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        return model
+    
+    def train(self, X_train, y_train):
+        history = self.model.fit(X_train, y_train, epochs=50, batch_size=32)
+        return history
+
+# 강화학습 거래 에이전트
+import numpy as np
+from stable_baselines3 import PPO
+
+class TradingAgent:
+    def __init__(self, env):
+        self.env = env
+        self.model = PPO("MlpPolicy", env, verbose=1)
+    
+    def train(self, total_timesteps=10000):
+        self.model.learn(total_timesteps=total_timesteps)
+    
+    def predict_action(self, state):
+        action, _ = self.model.predict(state)
+        return action
+
+# 모델 버전 관리
+import mlflow
+import mlflow.tensorflow
+
+class ModelVersionManager:
+    def __init__(self):
+        mlflow.set_tracking_uri("sqlite:///mlflow.db")
+    
+    def log_model(self, model, model_name, metrics):
+        with mlflow.start_run():
+            mlflow.log_metrics(metrics)
+            mlflow.tensorflow.log_model(model, model_name)
+    
+    def load_model(self, model_name, version):
+        return mlflow.tensorflow.load_model(f"models:/{model_name}/{version}")
+
+# A/B 테스트
+class ABTestManager:
+    def __init__(self):
+        self.models = {}
+        self.traffic_split = 0.5
+    
+    def add_model(self, name, model, version):
+        self.models[name] = {
+            'model': model,
+            'version': version,
+            'performance': []
+        }
+    
+    def get_model_for_request(self, user_id):
+        # 사용자 ID 기반 일관된 모델 선택
+        if hash(user_id) % 100 < self.traffic_split * 100:
+            return self.models['model_a']
+        else:
+            return self.models['model_b']
+```

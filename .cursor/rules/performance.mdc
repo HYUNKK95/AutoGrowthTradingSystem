@@ -1,0 +1,71 @@
+---
+description: "성능 요구사항 - 데이터베이스 최적화, 비동기 처리, 캐싱"
+globs: ["**/*.py", "**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+# 성능 요구사항
+
+## 데이터베이스 최적화
+- **쿼리 최적화**: 인덱스 사용 필수
+- **N+1 문제 방지**: Eager Loading 사용
+- **연결 풀링**: 데이터베이스 연결 재사용
+- **캐싱**: Redis 활용 필수
+
+## 비동기 처리
+- **무거운 작업**: 백그라운드 처리
+- **API 응답**: 200ms 이내
+- **데이터베이스 쿼리**: 50ms 이내
+- **외부 API 호출**: 타임아웃 설정 필수
+
+## 성능 최적화 예시
+```python
+# 데이터베이스 인덱스 사용
+class UserService:
+    def get_users_with_orders(self):
+        # 올바른 방법: JOIN과 인덱스 활용
+        return db.query(User).join(Order).filter(
+            Order.status == 'active'
+        ).all()
+
+# Redis 캐싱
+import redis
+from functools import wraps
+
+def cache_result(expire_time=300):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            cache_key = f"{func.__name__}:{hash(str(args) + str(kwargs))}"
+            result = redis_client.get(cache_key)
+            if result:
+                return json.loads(result)
+            
+            result = func(*args, **kwargs)
+            redis_client.setex(cache_key, expire_time, json.dumps(result))
+            return result
+        return wrapper
+    return decorator
+
+# 비동기 처리
+import asyncio
+from celery import Celery
+
+@celery.task
+def process_large_dataset(data):
+    # 무거운 작업을 백그라운드에서 처리
+    result = heavy_processing(data)
+    return result
+
+# 타임아웃 설정
+import asyncio
+
+async def fetch_data_with_timeout(url, timeout=10):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=timeout) as response:
+                return await response.json()
+    except asyncio.TimeoutError:
+        logger.error(f"요청 타임아웃: {url}")
+        raise
+```

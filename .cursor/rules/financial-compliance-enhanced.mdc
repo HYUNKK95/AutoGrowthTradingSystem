@@ -1,0 +1,275 @@
+---
+description: "금융 규정 준수 강화 지침 - Basel III, EMIR, SFTR, CCP"
+globs: ["**/*.py", "**/*.md"]
+alwaysApply: true
+---
+
+# 금융 규정 준수 강화 지침 (MANDATORY)
+
+## 추가 규정 준수 요구사항
+- **Basel III**: 자본 충분성 규정
+- **EMIR**: 유럽 시장 인프라 규정
+- **SFTR**: 증권 금융 거래 규정
+- **CCP**: 중앙상대방결제소 규정
+- **실시간 보고**: 거래 후 1분 이내 보고
+- **스트레스 테스트**: 분기별 시나리오 테스트
+
+## 규정 준수 구현 예시
+```python
+import asyncio
+from datetime import datetime, timedelta
+from typing import Dict, List, Any
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+# 실시간 거래 보고
+class RegulatoryReporter:
+    def __init__(self):
+        self.reporting_queue = asyncio.Queue()
+        self.reporting_task = asyncio.create_task(self.report_loop())
+        self.regulatory_endpoints = {
+            'basel_iii': 'https://regulator.basel3.com/report',
+            'emir': 'https://regulator.emir.eu/report',
+            'sftr': 'https://regulator.sftr.eu/report',
+            'ccp': 'https://regulator.ccp.com/report'
+        }
+    
+    async def report_trade(self, trade: dict):
+        """거래 후 1분 이내 보고"""
+        report_data = {
+            'trade_id': trade['id'],
+            'timestamp': datetime.utcnow().isoformat(),
+            'data': trade,
+            'deadline': datetime.utcnow() + timedelta(minutes=1),
+            'regulations': self.determine_applicable_regulations(trade)
+        }
+        
+        await self.reporting_queue.put(report_data)
+    
+    def determine_applicable_regulations(self, trade: dict) -> List[str]:
+        """거래에 적용되는 규정 결정"""
+        regulations = []
+        
+        # Basel III: 자본 충분성
+        if trade.get('amount', 0) > 1000000:  # 100만 달러 이상
+            regulations.append('basel_iii')
+        
+        # EMIR: 유럽 거래
+        if trade.get('region') == 'EU':
+            regulations.append('emir')
+        
+        # SFTR: 증권 금융 거래
+        if trade.get('instrument_type') in ['repo', 'securities_lending']:
+            regulations.append('sftr')
+        
+        # CCP: 중앙상대방결제
+        if trade.get('clearing_type') == 'ccp':
+            regulations.append('ccp')
+        
+        return regulations
+    
+    async def report_loop(self):
+        """보고 루프"""
+        while True:
+            try:
+                report = await self.reporting_queue.get()
+                
+                # 각 규정별로 보고
+                for regulation in report['regulations']:
+                    await self.send_to_regulator(report, regulation)
+                
+                # 보고 완료 확인
+                if datetime.utcnow() > report['deadline']:
+                    logger.error(f"Regulatory report delayed: {report['trade_id']}")
+                
+            except Exception as e:
+                logger.error(f"Regulatory reporting error: {e}")
+    
+    async def send_to_regulator(self, report: dict, regulation: str):
+        """규제 기관에 보고"""
+        endpoint = self.regulatory_endpoints.get(regulation)
+        if not endpoint:
+            logger.warning(f"No endpoint for regulation: {regulation}")
+            return
+        
+        try:
+            # 실제 구현에서는 HTTP 클라이언트 사용
+            await self.http_client.post(endpoint, json=report['data'])
+            logger.info(f"Reported to {regulation}: {report['trade_id']}")
+        except Exception as e:
+            logger.error(f"Failed to report to {regulation}: {e}")
+
+# 스트레스 테스트 시스템
+class StressTestManager:
+    def __init__(self):
+        self.scenarios = {
+            'market_crash': self.market_crash_scenario,
+            'liquidity_crisis': self.liquidity_crisis_scenario,
+            'counterparty_default': self.counterparty_default_scenario,
+            'systemic_risk': self.systemic_risk_scenario
+        }
+    
+    async def run_stress_test(self, scenario_name: str) -> Dict[str, Any]:
+        """스트레스 테스트 실행"""
+        if scenario_name not in self.scenarios:
+            raise ValueError(f"Unknown scenario: {scenario_name}")
+        
+        scenario = self.scenarios[scenario_name]
+        results = await scenario()
+        
+        # 결과 분석 및 보고
+        await self.analyze_stress_test_results(results)
+        
+        return results
+    
+    async def market_crash_scenario(self) -> Dict[str, Any]:
+        """시장 폭락 시나리오"""
+        return {
+            'scenario': 'market_crash',
+            'market_shock': -30,  # 30% 하락
+            'volatility_increase': 300,  # 300% 증가
+            'liquidity_dry_up': True,
+            'portfolio_impact': self.calculate_portfolio_impact(-30)
+        }
+    
+    async def liquidity_crisis_scenario(self) -> Dict[str, Any]:
+        """유동성 위기 시나리오"""
+        return {
+            'scenario': 'liquidity_crisis',
+            'bid_ask_spread': 500,  # 500% 증가
+            'market_depth': 0.1,  # 90% 감소
+            'funding_cost': 1000,  # 1000% 증가
+            'portfolio_impact': self.calculate_liquidity_impact()
+        }
+    
+    def calculate_portfolio_impact(self, market_shock: float) -> Dict[str, float]:
+        """포트폴리오 영향 계산"""
+        # 실제 구현에서는 포트폴리오 데이터 사용
+        return {
+            'var_95': market_shock * 1.65,
+            'var_99': market_shock * 2.33,
+            'expected_shortfall': market_shock * 2.5
+        }
+    
+    def calculate_liquidity_impact(self) -> Dict[str, float]:
+        """유동성 영향 계산"""
+        return {
+            'liquidation_cost': 0.05,  # 5% 청산 비용
+            'funding_stress': 0.10,  # 10% 자금 스트레스
+            'market_impact': 0.15  # 15% 시장 영향
+        }
+
+# 자본 충분성 모니터링 (Basel III)
+class CapitalAdequacyMonitor:
+    def __init__(self):
+        self.capital_ratios = {
+            'tier_1_ratio': 0.0,
+            'tier_2_ratio': 0.0,
+            'total_capital_ratio': 0.0,
+            'leverage_ratio': 0.0
+        }
+    
+    def calculate_capital_ratios(self, portfolio: dict) -> Dict[str, float]:
+        """자본 비율 계산"""
+        # Tier 1 자본 (핵심 자본)
+        tier_1_capital = portfolio.get('equity', 0) + portfolio.get('retained_earnings', 0)
+        
+        # Tier 2 자본 (보완 자본)
+        tier_2_capital = portfolio.get('subordinated_debt', 0) + portfolio.get('loan_loss_reserves', 0)
+        
+        # 위험 가중 자산
+        risk_weighted_assets = self.calculate_risk_weighted_assets(portfolio)
+        
+        # 자본 비율 계산
+        self.capital_ratios['tier_1_ratio'] = tier_1_capital / risk_weighted_assets
+        self.capital_ratios['tier_2_ratio'] = tier_2_capital / risk_weighted_assets
+        self.capital_ratios['total_capital_ratio'] = (tier_1_capital + tier_2_capital) / risk_weighted_assets
+        self.capital_ratios['leverage_ratio'] = tier_1_capital / portfolio.get('total_assets', 1)
+        
+        return self.capital_ratios
+    
+    def calculate_risk_weighted_assets(self, portfolio: dict) -> float:
+        """위험 가중 자산 계산"""
+        risk_weights = {
+            'government_bonds': 0.0,  # 무위험
+            'corporate_bonds': 0.2,   # 20% 위험
+            'equities': 1.0,          # 100% 위험
+            'derivatives': 0.5        # 50% 위험
+        }
+        
+        total_rwa = 0
+        for asset_type, amount in portfolio.get('assets', {}).items():
+            weight = risk_weights.get(asset_type, 1.0)
+            total_rwa += amount * weight
+        
+        return total_rwa
+    
+    def check_regulatory_compliance(self) -> Dict[str, bool]:
+        """규정 준수 확인"""
+        compliance = {
+            'tier_1_ratio': self.capital_ratios['tier_1_ratio'] >= 0.06,  # 6% 이상
+            'total_capital_ratio': self.capital_ratios['total_capital_ratio'] >= 0.08,  # 8% 이상
+            'leverage_ratio': self.capital_ratios['leverage_ratio'] >= 0.03  # 3% 이상
+        }
+        
+        return compliance
+
+# 거래 감시 시스템
+class TradeSurveillance:
+    def __init__(self):
+        self.suspicious_patterns = {
+            'wash_trading': self.detect_wash_trading,
+            'front_running': self.detect_front_running,
+            'pump_and_dump': self.detect_pump_and_dump,
+            'insider_trading': self.detect_insider_trading
+        }
+    
+    def monitor_trade(self, trade: dict) -> Dict[str, Any]:
+        """거래 모니터링"""
+        alerts = {}
+        
+        for pattern_name, detector in self.suspicious_patterns.items():
+            if detector(trade):
+                alerts[pattern_name] = True
+                logger.warning(f"Suspicious {pattern_name} detected: {trade['id']}")
+        
+        return alerts
+    
+    def detect_wash_trading(self, trade: dict) -> bool:
+        """세탁 거래 탐지"""
+        # 같은 계정 간 거래 패턴 확인
+        # 실제 구현에서는 더 복잡한 알고리즘 사용
+        return False
+    
+    def detect_front_running(self, trade: dict) -> bool:
+        """프론트러닝 탐지"""
+        # 대량 주문 전 소량 거래 패턴 확인
+        return False
+    
+    def detect_pump_and_dump(self, trade: dict) -> bool:
+        """펌프앤덤프 탐지"""
+        # 급격한 가격 상승 후 대량 매도 패턴 확인
+        return False
+    
+    def detect_insider_trading(self, trade: dict) -> bool:
+        """내부자 거래 탐지"""
+        # 비정상적인 거래 타이밍 및 규모 확인
+        return False
+```
+
+## 규정 준수 체크리스트
+- [ ] 실시간 거래 보고 시스템 구현
+- [ ] 스트레스 테스트 시나리오 정의
+- [ ] 자본 충분성 모니터링 구현
+- [ ] 거래 감시 시스템 구축
+- [ ] 규제 기관 API 연동
+- [ ] 분기별 규정 준수 검사 일정
+- [ ] 규정 변경 모니터링 시스템
+- [ ] 감사 로그 7년 보관 시스템
+description:
+globs:
+alwaysApply: false
+---
+ 

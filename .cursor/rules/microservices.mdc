@@ -1,0 +1,152 @@
+---
+description: "마이크로서비스 규칙 - 서비스 설계, 통신, 데이터 관리"
+globs: ["**/*.py", "**/*.yaml", "**/*.yml"]
+alwaysApply: true
+---
+
+# 트레이딩 마이크로서비스 특별 지침
+
+## 트레이딩 서비스 설계 규칙
+- **거래 엔진**: 고성능 주문 처리 엔진 (C++/Rust)
+- **주문 매칭**: FIFO, Pro-rata, Time-weighted 알고리즘
+- **포지션 관리**: 실시간 포지션 계산 및 리스크 관리
+- **거래소 어댑터**: 다중 거래소 통합 및 정규화
+- **API 설계**: RESTful + WebSocket 표준
+
+## 실시간 통신 규칙
+- **저지연 통신**: ZeroMQ, gRPC 사용
+- **실시간 메시징**: Kafka Streams 기반 이벤트 처리
+- **서킷 브레이커**: 거래소 연결 장애 대응
+- **재시도 정책**: 지수 백오프 + 지연 시간 최적화
+
+## 트레이딩 데이터 관리
+- **시계열 데이터**: InfluxDB 기반 고성능 저장
+- **이벤트 소싱**: 모든 거래 이벤트 기록
+- **CQRS**: 거래 명령과 조회 분리
+- **Saga 패턴**: 분산 거래 처리 및 롤백
+
+## 마이크로서비스 구현 예시
+```python
+# 서비스 간 통신 (gRPC)
+import grpc
+from concurrent import futures
+import trading_pb2
+import trading_pb2_grpc
+
+class TradingService(trading_pb2_grpc.TradingServicer):
+    def PlaceOrder(self, request, context):
+        try:
+            # 주문 처리 로직
+            order_result = self.process_order(request)
+            return trading_pb2.OrderResponse(
+                order_id=order_result['order_id'],
+                status='success',
+                message='Order placed successfully'
+            )
+        except Exception as e:
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return trading_pb2.OrderResponse(status='error')
+
+# 이벤트 소싱
+from dataclasses import dataclass
+from datetime import datetime
+from typing import List
+
+@dataclass
+class OrderEvent:
+    event_id: str
+    order_id: str
+    event_type: str
+    timestamp: datetime
+    data: dict
+
+class EventStore:
+    def __init__(self):
+        self.events: List[OrderEvent] = []
+    
+    def append_event(self, event: OrderEvent):
+        self.events.append(event)
+        # 이벤트를 Kafka로 발행
+        self.publish_event(event)
+    
+    def get_events_for_order(self, order_id: str) -> List[OrderEvent]:
+        return [e for e in self.events if e.order_id == order_id]
+
+# CQRS 패턴
+class OrderCommandHandler:
+    def __init__(self, event_store: EventStore):
+        self.event_store = event_store
+    
+    def place_order(self, order_data: dict):
+        # 명령 처리
+        order_id = self.generate_order_id()
+        event = OrderEvent(
+            event_id=self.generate_event_id(),
+            order_id=order_id,
+            event_type='ORDER_PLACED',
+            timestamp=datetime.now(),
+            data=order_data
+        )
+        self.event_store.append_event(event)
+        return order_id
+
+class OrderQueryHandler:
+    def __init__(self, read_model):
+        self.read_model = read_model
+    
+    def get_order(self, order_id: str):
+        # 조회 처리
+        return self.read_model.get_order(order_id)
+    
+    def get_user_orders(self, user_id: str):
+        return self.read_model.get_orders_by_user(user_id)
+
+# 서킷 브레이커
+import asyncio
+from enum import Enum
+
+class CircuitState(Enum):
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
+    HALF_OPEN = "HALF_OPEN"
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, timeout=60):
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.failure_count = 0
+        self.state = CircuitState.CLOSED
+        self.last_failure_time = None
+    
+    async def call(self, func, *args, **kwargs):
+        if self.state == CircuitState.OPEN:
+            if self.should_attempt_reset():
+                self.state = CircuitState.HALF_OPEN
+            else:
+                raise Exception("Circuit breaker is OPEN")
+        
+        try:
+            result = await func(*args, **kwargs)
+            self.on_success()
+            return result
+        except Exception as e:
+            self.on_failure()
+            raise e
+    
+    def on_success(self):
+        self.failure_count = 0
+        self.state = CircuitState.CLOSED
+    
+    def on_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = datetime.now()
+        
+        if self.failure_count >= self.failure_threshold:
+            self.state = CircuitState.OPEN
+    
+    def should_attempt_reset(self):
+        if not self.last_failure_time:
+            return True
+        return (datetime.now() - self.last_failure_time).seconds >= self.timeout
+```

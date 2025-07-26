@@ -1,0 +1,173 @@
+---
+description: "실시간 성능 최적화 지침 - HFT, 저지연, Lock-free 알고리즘"
+globs: ["**/*.py", "**/*.rs", "**/*.cpp"]
+alwaysApply: true
+---
+
+# 실시간 성능 최적화 지침 (MANDATORY)
+
+## 성능 요구사항
+- **주문 처리 지연**: < 100μs (마이크로초)
+- **데이터 수집 지연**: < 1ms
+- **AI 추론 지연**: < 10ms
+- **네트워크 지연**: < 1ms (코로케이션)
+- **메모리 사용량**: < 1GB per service
+- **CPU 사용률**: < 70% (피크 시)
+
+## 고빈도 거래(HFT) 시스템 요구사항
+- **FPGA 가속**: 하드웨어 가속 거래 로직
+- **코로케이션**: 거래소 서버 근처 배포
+- **커스텀 프로토콜**: UDP 멀티캐스트 활용
+- **Lock-free 알고리즘**: 메모리 경합 최소화
+- **NUMA 인식**: CPU 아키텍처 최적화
+- **JIT 컴파일**: 런타임 코드 최적화
+
+## 실시간 성능 최적화 구현 예시
+```python
+import time
+import threading
+from typing import Optional
+from dataclasses import dataclass
+
+# 저지연 주문 처리
+class LowLatencyOrderProcessor:
+    def __init__(self):
+        self.lock_free_queue = LockFreeQueue()
+        self.memory_pool = MemoryPool()
+        self.performance_monitor = PerformanceMonitor()
+    
+    def process_order(self, order: dict) -> dict:
+        start_time = time.perf_counter_ns()
+        
+        # 메모리 풀에서 객체 재사용
+        order_obj = self.memory_pool.get_order_object()
+        
+        # Lock-free 큐 사용
+        self.lock_free_queue.enqueue(order_obj)
+        
+        processing_time = time.perf_counter_ns() - start_time
+        self.performance_monitor.record_latency('order_processing', processing_time)
+        
+        if processing_time > 100_000:  # 100μs
+            logger.warning(f"Order processing exceeded 100μs: {processing_time}ns")
+        
+        return order_obj
+
+# Lock-free 주문 큐
+@dataclass
+class OrderNode:
+    order: dict
+    next: Optional['OrderNode'] = None
+
+class LockFreeOrderQueue:
+    def __init__(self):
+        self.head = OrderNode(None)
+        self.tail = self.head
+    
+    def enqueue(self, order: dict) -> bool:
+        node = OrderNode(order)
+        
+        while True:
+            tail = self.tail
+            next_tail = tail.next
+            
+            if tail == self.tail:
+                if next_tail is None:
+                    if tail.next is None:
+                        tail.next = node
+                        self.tail = node
+                        return True
+                else:
+                    self.tail = next_tail
+    
+    def dequeue(self) -> Optional[dict]:
+        while True:
+            head = self.head
+            tail = self.tail
+            next_head = head.next
+            
+            if head == self.head:
+                if head == tail:
+                    if next_head is None:
+                        return None
+                    self.tail = next_head
+                else:
+                    if next_head is not None:
+                        self.head = next_head
+                        return next_head.order
+
+# 성능 모니터링
+class PerformanceMonitor:
+    def __init__(self):
+        self.metrics = {}
+        self.lock = threading.Lock()
+    
+    def record_latency(self, operation: str, latency_ns: int):
+        with self.lock:
+            if operation not in self.metrics:
+                self.metrics[operation] = []
+            self.metrics[operation].append(latency_ns)
+            
+            # 최근 1000개만 유지
+            if len(self.metrics[operation]) > 1000:
+                self.metrics[operation] = self.metrics[operation][-1000:]
+    
+    def get_p95_latency(self, operation: str) -> int:
+        with self.lock:
+            if operation not in self.metrics:
+                return 0
+            
+            latencies = sorted(self.metrics[operation])
+            p95_index = int(len(latencies) * 0.95)
+            return latencies[p95_index] if p95_index < len(latencies) else 0
+
+# 메모리 풀
+class MemoryPool:
+    def __init__(self, pool_size: int = 1000):
+        self.pool = []
+        self.lock = threading.Lock()
+        self.pool_size = pool_size
+        
+        # 미리 객체 생성
+        for _ in range(pool_size):
+            self.pool.append(OrderObject())
+    
+    def get_order_object(self) -> 'OrderObject':
+        with self.lock:
+            if self.pool:
+                return self.pool.pop()
+            return OrderObject()  # 풀이 비면 새로 생성
+    
+    def return_order_object(self, obj: 'OrderObject'):
+        with self.lock:
+            if len(self.pool) < self.pool_size:
+                obj.reset()  # 객체 초기화
+                self.pool.append(obj)
+
+class OrderObject:
+    def __init__(self):
+        self.reset()
+    
+    def reset(self):
+        self.order_id = None
+        self.symbol = None
+        self.quantity = None
+        self.price = None
+        self.side = None
+        self.status = None
+```
+
+## 성능 최적화 체크리스트
+- [ ] 모든 주문 처리 함수에 성능 측정 추가
+- [ ] Lock-free 데이터 구조 사용
+- [ ] 메모리 풀 패턴 적용
+- [ ] 마이크로초 단위 모니터링 구현
+- [ ] 성능 임계값 알림 설정
+- [ ] NUMA 인식 배포 구성
+- [ ] 코로케이션 환경 설정
+- [ ] FPGA 가속 로직 구현 (필요시)
+description:
+globs:
+alwaysApply: false
+---
+ 
