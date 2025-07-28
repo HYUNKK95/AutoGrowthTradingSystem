@@ -1,0 +1,23 @@
+# API 및 데이터 처리
+python-binance==1.0.19
+websocket-client==1.6.4
+requests==2.31.0
+aiohttp==3.9.1
+
+# 데이터 분석
+pandas==2.1.4
+numpy==1.24.3
+scikit-learn==1.3.2
+
+# 데이터베이스
+sqlite3
+
+# 로깅 및 유틸리티
+python-dotenv==1.0.0
+logging
+
+# 추가 분석 도구
+ta==0.10.2  # 기술적 분석
+
+# RSS 및 감정 분석
+feedparser==6.0.10 
